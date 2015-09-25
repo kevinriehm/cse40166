@@ -1,0 +1,20 @@
+How to Run
+----------
+
+Open the 'initials.html' file in the '0' directory.
+
+Explanation
+-----------
+
+The 'K' is drawn using ordinary triangle primitives, and the 'R' is drawn using
+a single triangle strip. All the coordinates are hard-coded, but note that the
+arch of the 'R' is generated at runtime; it is possible to adjust the
+smoothness of the arch by changing the number of points generated to any
+positive odd integer.
+
+The wavy color effect is achieved by creating a new varying, fPosition, which
+the vertex shader sets to the position of each vertex, as given in vPosition.
+The fragment shader applies some simple math to the interpolated value of
+fPosition to get a scaling factor, which it multiplies against the input
+baseColor for the final result.
+

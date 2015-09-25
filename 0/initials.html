@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script id="vertex-shader" type="x-shader/x-vertex">
+		attribute vec4 vPosition;
+
+		varying vec4 fPosition;
+
+		void main() {
+			fPosition = vPosition;
+			gl_Position = vPosition;
+		}
+	</script>
+
+	<script id="fragment-shader" type="x-shader/x-fragment">
+		precision mediump float;
+
+		uniform vec3 baseColor;
+
+		varying vec4 fPosition;
+
+		void main() {
+			float scale = abs(sin(10.0*dot(vec2(1.0, -1.0), fPosition.xy)));
+			gl_FragColor = vec4(scale*baseColor, 1.0);
+		}
+	</script>
+
+	<script type="text/javascript" src="../Common/webgl-utils.js"></script>
+	<script type="text/javascript" src="../Common/initShaders.js"></script>
+	<script type="text/javascript" src="../Common/MV.js"></script>
+	<script type="text/javascript" src="initials.js"></script>
+</head>
+
+<body>
+	<canvas id="gl-canvas" width="512" height="512">
+		Oops ... your browser doesn't support the HTML5 canvas element
+	</canvas>
+</body>
+</html>
+

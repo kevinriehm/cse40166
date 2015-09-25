@@ -1,0 +1,30 @@
+How to Run
+----------
+
+Open the 'pingpong.html' file in the '1' directory.
+
+Explanation
+-----------
+
+The ball is rendered as a triangle fan (whose vertex positions are
+automatically generated), and the paddle is a triangle strip of just two
+triangles.
+
+The two buttons on the left move the paddle back and forth (as indicated by the
+buttons' arrows), while the two buttons on the right increase and decrease the
+speed of the ball. As a convenience, the arrow keys can be used instead: left
+and right for the paddle, up and down to increase and decrease the speed of the
+ball, respectively.
+
+At the start the ball is placed at a random position along the top of the
+gameplay area, and given a random starting vector (the initial speed is always
+the same). Some effort has been made to avoid boring ball directions; namely,
+those that are too steep (where the ball just goes straight up and down in the
+same spot) and those that are too gradual (where the ball spends most of its
+time bouncing back and forth between the side walls). The color of the ball is
+also dynamically modified to reflect its speed.
+
+Centered at the bottom of the layout is the player's score, which is updated on
+each bounce. When the game is over, all the controls are disabled,  and the
+canvas is no longer updated; to play another game, simply refresh the page.
+
