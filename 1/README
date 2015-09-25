@@ -3,6 +3,9 @@ How to Run
 
 Open the 'pingpong.html' file in the '1' directory.
 
+This has the shaders in separate files, so make sure to set permissions to
+allow AJAX access to those files.
+
 Explanation
 -----------
 
