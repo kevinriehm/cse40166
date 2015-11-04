@@ -1,0 +1,41 @@
+Final Project Proposal
+Kevin Riehm
+2015-11-04
+
+My proposal is to write an ocean surface simulator: using WebGL, I will render
+animated waves (extending to the horizon) with realistic lighting from the
+sun. The user will be able to adjust the camera and other parameters of the
+rendering.
+
+Goals for features and configurable options:
+
+ - Camera direction and zoom
+
+ - Wave size and roughness
+
+ - Sunlight direction and intensity
+
+ - Wind speed and direction
+
+ - Water and sky color
+
+For the wave simulation, I plan on using an algorithm I found
+(http://people.clemson.edu/~jtessen/papers_files/coursenotes2002.pdf) the
+basic idea of which is to treat ocean waves as a statistical system, where a
+set of randomized frequencies is generated and a heightfield for the waves are
+then calculated via an inverse Fourier transform. This seems to be a popular
+algorithm for simulating oceans in both movies and video games.
+
+I also plan to put some effort into making a decent shading model for the
+water, so that it actually looks like an ocean, not just a bouncing blue blob.
+
+It is hard to be certain how much work this will entail, but, time permitting,
+other possible additions might include a textured skybox, reflections of that
+skybox in the water, atmospheric effects (fog), or objects bobbing in the
+water.
+
+The biggest challenge I am anticipating is making it run efficiently, since it
+will involve computing that inverse Fourier transform for every frame of
+animation, in addition to rendering a sufficient number of triangles to keep
+the animation smooth.
+
