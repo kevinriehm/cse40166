@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+	<head>
+		<title>3D Orrey</title>
+
+		<script src="../Common/webgl-utils.js"></script>
+		<script src="../Common/MV.js"></script>
+		<script src="../Common/initShaders2.js"></script>
+
+		<script src="orrey.js"></script>
+	</head>
+
+	<body>
+		<canvas id="canvas" width="512" height="512">HTML canvas support is required.</canvas>
+
+		<br>
+
+		<button id="faster">Inc DPF</button>
+		<button id="slower">Dec DPF</button>
+
+		<br>
+
+		<input id="orbiton" name="orbit" type="radio" checked/>
+		<label for="orbiton">Orbit on</label>
+		<input id="orbitoff" name="orbit" type="radio"/>
+		<label for="orbitoff">Orbit off</label>
+
+		<br>
+
+		<input id="dayon" name="day" type="radio" checked/>
+		<label for="dayon">Day on</label>
+		<input id="dayoff" name="day" type="radio"/>
+		<label for="dayoff">Day off</label>
+
+		<br>
+
+		<input id="animon" name="animation" type="radio" checked/>
+		<label for="animon">Animation on</label>
+		<input id="animoff" name="animation" type="radio"/>
+		<label for="animoff">Animation off</label>
+
+		<p id="day"></p>
+	</body>
+</html>
+

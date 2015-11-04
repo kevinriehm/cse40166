@@ -1,0 +1,30 @@
+How to Run
+----------
+
+Open the 'orrey.html' file in the '2' directory.
+
+This has the shaders in separate files, so be sure to set permissions to allow
+AJAX access to those files.
+
+Explanation
+-----------
+
+The actual physical attributes of the planets are stored in an array, defined
+in the function bound to window.onload; these are then scaled down in a very
+ad-hoc manner in the render_planet() function in order to make all the bodies
+not only fit within the viewport but also are all visible at the same time. If
+even their relative sizes were maintained correctly, only the Sun would be
+large enough to cover even a single pixel, so instead they are scaled
+non-linearly to make them all visible.
+
+Instead of an explicit stack of matrices, the current matrix is simply passed
+to recursive invocations of render_planet() (implicitly making use of the call
+stack). This is only actually needed to render the Moon, to make sure its orbit
+around the Earth follows the Earth's orbit around the Sun.
+
+Although the assignment says to operate at 30 fps, it is not actually possible
+to control the framerate that the browser renders at when using
+window.requestAnimationFrame(). Hence, I interpret this as simply meaning 30
+days-per-second, and do the appropriate calculations needed to implement this
+independent of the actual framerate.
+
