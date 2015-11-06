@@ -1,0 +1,18 @@
+How to Run
+----------
+
+Open the 'bspline.html' file in the '3' directory.
+
+This has the shaders in separate files, so be sure to set permissions to allow
+AJAX access to those files.
+
+Explanation
+-----------
+
+The B-spline interpolation actually happens in the vertex shader: successive
+sets of four control points are passed in via uniforms, and the interpolation
+variable is passed in as a vertex attribute. This offloads the spline
+calculation to the GPU and skips the uploading of all the interpolated points
+each frame, although it does require multiple calls to drawArrays() (one per
+spline segment).
+

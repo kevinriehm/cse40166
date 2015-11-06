@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Interactive B-Spline Curve</title>
+
+		<script src="../Common/webgl-utils.js"></script>
+		<script src="../Common/MV.js"></script>
+		<script src="../Common/initShaders2.js"></script>
+
+		<script src="bspline.js"></script>
+	</head>
+
+	<body>
+		<canvas id="canvas" width="512" height="512">HTML canvas support is required.</canvas>
+
+		<br>
+
+		<input id="addvertex" name="mode" type="radio" checked/>
+		<label for="addvertex"> Add control vertex</label>
+		<input id="dragvertex" name="mode" type="radio"/>
+		<label for="dragvertex"> Drag control vertex</label>
+	</body>
+</html>
+
