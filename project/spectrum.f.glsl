@@ -7,6 +7,8 @@ uniform vec2 u_wind;
 uniform float u_amplitude;
 uniform float u_scale;
 
+uniform float u_time;
+
 const float g = 9.8;
 const float pi = 3.141592653;
 
@@ -16,6 +18,34 @@ float sqr(float x) {
 
 float rand(vec4 seed) {
 	return fract(437.5453*sin(dot(seed, vec4(12.9898, 78.233, 232.5172, 471.16986))));
+}
+
+int reverse2(int x) {
+	if(x == 1)
+		return 2;
+	else if(x == 2)
+		return 1;
+	else return x;
+}
+
+int reverse4(int x) {
+	return reverse2(x/4) + 4*reverse2(x - x/4*4);
+}
+
+int reverse6(int x) {
+	return reverse4(x/4) + 16*reverse2(x - x/4*4);
+}
+
+vec2 cconj(vec2 a) {
+	return vec2(a[0], -a[1]);
+}
+
+vec2 cexp(float x) {
+	return vec2(cos(x), sin(x));
+}
+
+vec2 cmul(vec2 a, vec2 b) {
+	return vec2(a[0]*b[0] - a[1]*b[1], a[0]*b[1] + a[1]*b[0]);
 }
 
 vec2 gauss2(vec4 seed) {
@@ -47,8 +77,17 @@ vec2 h0(vec2 k) {
 //	return /*gauss2(vec4(k, u_wind))**/vec2(sqrt(phillips(k)/2.));
 }
 
+vec2 h(vec2 k, float t) {
+	const float w0 = 2.*pi/200.; // Base frequency
+//	float wt = floor(sqrt(g*length(k))/w0)*w0*t;
+	float wt = sqrt(g*length(k))*t;
+	return cmul(h0(k), cexp(wt)) + cmul(cconj(h0(-k)), cexp(-wt));
+}
+
 void main() {
-	vec2 k = 2.*pi*(gl_FragCoord.xy - u_dim/2.)/u_scale;
-	gl_FragColor = vec4(h0(k), 0, 0);
+	vec2 coord = vec2(reverse6(int(gl_FragCoord.x)), reverse6(int(gl_FragCoord.y)));
+//	vec2 coord = gl_FragCoord.xy;
+	vec2 k = 2.*pi*(coord - u_dim/2.)/u_scale;
+	gl_FragColor = vec4(h(k, u_time), 0, 0);
 }
 

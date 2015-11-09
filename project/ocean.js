@@ -8,8 +8,6 @@ var programs;
 var fbos;
 var textures;
 
-var updatespectrum;
-
 // Geometry
 var quad;
 var water;
@@ -21,12 +19,14 @@ var wavesamplitude;
 var wavesscale;
 var wind;
 
+var playing;
+
 window.onload = function() {
 	waterdim = 128; // Maximum resolution of a single water cell
 	wavesdim = 64; // Resolution of wave heightmap
-	wavesamplitude = 10; // Height of waves
-	wavesscale = 100; // World-space size of heightmap
-	wind = vec2(1, 0); // Wind vector
+	wavesamplitude = 100; // Height of waves
+	wavesscale = 10; // World-space size of heightmap
+	wind = vec2(10, 0); // Wind vector
 
 	// Set up WebGL
 	var canvas = document.getElementById('canvas');
@@ -40,6 +40,9 @@ window.onload = function() {
 
 	// Compile shaders
 	programs = {
+		fft_final: build_program('fft_final.v.glsl', 'fft_final.f.glsl'),
+		fft_x: build_program('fft_x.v.glsl', 'fft_x.f.glsl'),
+		fft_y: build_program('fft_y.v.glsl', 'fft_y.f.glsl'),
 		spectrum: build_program('spectrum.v.glsl', 'spectrum.f.glsl'),
 		water: build_program('water.v.glsl', 'water.f.glsl'),
 		waves: build_program('waves.v.glsl', 'waves.f.glsl')
@@ -50,6 +53,16 @@ window.onload = function() {
 
 	textures.spectrum = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, textures.spectrum);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wavesdim, wavesdim, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+
+	textures.fft = [
+		textures.spectrum,
+		gl.createTexture()
+	];
+
+	gl.bindTexture(gl.TEXTURE_2D, textures.fft[1]);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wavesdim, wavesdim, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -65,6 +78,14 @@ window.onload = function() {
 	fbos.spectrum = gl.createFramebuffer();
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.spectrum, 0);
+
+	fbos.fft = [
+		fbos.spectrum,
+		gl.createFramebuffer()
+	];
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft[1]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft[1], 0);
 
 	fbos.waves = gl.createFramebuffer();
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves);
@@ -95,9 +116,10 @@ window.onload = function() {
 
 	for(var y = 0; y < dim - 1; y++) {
 		for(var x = 0; x < dim; x++)
-			water.indices.push((y + 1)*dim + (y&1 ? dim - x - 1 : x),
-				y*dim + (y&1 ? dim - x - 1 : x));
-		water.indices.push((y + 2)*dim - 1);
+			water.indices.push(
+				y*dim + (y&1 ? x : dim - x - 1),
+				(y + 1)*dim + (y&1 ? x : dim - x - 1)
+			);
 	}
 
 	water.points.buffer = gl.createBuffer();
@@ -108,8 +130,17 @@ window.onload = function() {
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, water.indices.buffer);
 		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(water.indices), gl.STATIC_DRAW);
 
-	// Begin rendering
-	updatespectrum = true;
+	// Hook up the controls
+	document.getElementById('play').onclick = function() {
+		playing = !playing;
+
+		this.textContent = playing ? "Pause" : "Play";
+
+		if(playing)
+			window.requestAnimationFrame(render);
+	};
+
+	playing = false;
 	window.requestAnimationFrame(render);
 };
 
@@ -133,41 +164,59 @@ function build_program(vshader, fshader) {
 	return program;
 }
 
+var prev;
+var frames = 0;
 function render(now) {
+var start = Date.now();
 	var cam, mv;
 
 	var nowsec = now/1000;
 
+	// FPS counter
+	if(!prev) prev = now;
+	if(now - prev >= 1000) {
+		prev += 1000;
+		console.log(frames);
+		frames = 0;
+	}
+	frames++;
+
 	// Rendering to spectrum FBO
 
-	if(updatespectrum) {
+//	if(updatespectrum) {
 		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum);
 		gl.clear(gl.COLOR_BUFFER_BIT);
 
 		// Wave spectrum at t = 0
 		gl.useProgram(programs.spectrum);
 
+		gl.disable(gl.DEPTH_TEST);
+
 		gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
 		gl.enableVertexAttribArray(programs.spectrum.a_position);
 		gl.vertexAttribPointer(programs.spectrum.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
 
 		gl.uniform2f(programs.spectrum.u_dim, wavesdim, wavesdim);
-		gl.uniform2f(programs.spectrum.u_wind, 3, 3);
+		gl.uniform2fv(programs.spectrum.u_wind, wind);
 		gl.uniform1f(programs.spectrum.u_amplitude, wavesamplitude);
 		gl.uniform1f(programs.spectrum.u_scale, wavesscale);
 
+		gl.uniform1f(programs.spectrum.u_time, nowsec);
+
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 
-		updatespectrum = false;
-	}
+//		updatespectrum = false;
+//	}
 
 	// Rendering to wave FBO
-
+/*
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves);
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	// Wave heightmap
 	gl.useProgram(programs.waves);
+
+	gl.disable(gl.DEPTH_TEST);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
 	gl.enableVertexAttribArray(programs.waves.a_position);
@@ -178,7 +227,77 @@ function render(now) {
 	gl.uniform1i(programs.waves.u_spectrum, 0);
 
 	gl.uniform1f(programs.waves.u_scale, wavesscale);
-	gl.uniform1f(programs.waves.u_time, nowsec/10);
+
+	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+*/
+	var niter = Math.round(Math.log(wavesdim)/Math.log(2));
+
+	// Horizontal FFT
+	gl.useProgram(programs.fft_x);
+
+	gl.disable(gl.DEPTH_TEST);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
+	gl.enableVertexAttribArray(programs.fft_x.a_position);
+	gl.vertexAttribPointer(programs.fft_x.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
+
+	for(var i = 0; i < niter; i++) {
+		var texin = i&1;
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft[texin^1]);
+
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, textures.fft[texin]);
+		gl.uniform1i(programs.fft_x.u_in, 0);
+
+		gl.uniform2f(programs.fft_x.u_dim, wavesdim, wavesdim);
+
+		gl.uniform1f(programs.fft_x.u_stage, i);
+
+		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+	}
+
+	// Vertical FFT
+	gl.useProgram(programs.fft_y);
+
+	gl.disable(gl.DEPTH_TEST);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
+	gl.enableVertexAttribArray(programs.fft_y.a_position);
+	gl.vertexAttribPointer(programs.fft_y.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
+
+	for(var i = 0; i < niter; i++) {
+		var texin = (niter + i)&1;
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft[texin^1]);
+
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, textures.fft[texin]);
+		gl.uniform1i(programs.fft_y.u_in, 0);
+
+		gl.uniform2f(programs.fft_y.u_dim, wavesdim, wavesdim);
+
+		gl.uniform1f(programs.fft_y.u_stage, i);
+
+		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+	}
+
+	// Finalize FFT (sign change)
+	gl.useProgram(programs.fft_final);
+
+	gl.disable(gl.DEPTH_TEST);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
+	gl.enableVertexAttribArray(programs.fft_final.a_position);
+	gl.vertexAttribPointer(programs.fft_final.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves);
+
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, textures.fft[0]);
+	gl.uniform1i(programs.fft_final.u_in, 0);
+
+	gl.uniform2f(programs.fft_final.u_dim, wavesdim, wavesdim);
 
 	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 
@@ -190,10 +309,12 @@ function render(now) {
 	// Water grid
 	gl.useProgram(programs.water);
 
+	gl.enable(gl.DEPTH_TEST);
+
 	cam = mat4();
-//	cam = mult(translate(0, -1, -1), cam);
-//	cam = mult(rotateX(45), cam);
-//	cam = mult(perspective(100, 1/1, 0.1, 100), cam);
+	cam = mult(translate(0, -1, -1), cam);
+	cam = mult(rotateX(45), cam);
+	cam = mult(perspective(100, 1/1, 0.1, 100), cam);
 
 	mv = mat4();
 	mv = mult(scalem(2, 2, 1), mv);
@@ -215,6 +336,9 @@ function render(now) {
 
 	gl.drawElements(gl.TRIANGLE_STRIP, water.indices.length, gl.UNSIGNED_SHORT, 0);
 
-//	window.requestAnimationFrame(render);
+	if(playing)
+		window.requestAnimationFrame(render);
+//gl.finish();
+//console.log(Date.now() - start);
 }
 

@@ -13,7 +13,7 @@ void main() {
 	const vec3 light = vec3(0, 2, 0);
 	vec4 waves = texture2D(u_waves, v_uv);
 	vec3 normal = waves.gba;
-	gl_FragColor = vec4(u_color*waves.g, 1);
+	gl_FragColor = vec4(u_color*waves.r*50., 1);
 //	gl_FragColor = vec4(u_color*waves.a, 1);
 //	gl_FragColor = vec4(u_color*dot(normal, normalize(light - v_xyz)), 1);
 }
