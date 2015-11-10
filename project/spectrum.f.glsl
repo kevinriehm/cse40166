@@ -1,5 +1,7 @@
 #version 100
 
+#extension GL_EXT_draw_buffers: require
+
 precision highp float;
 
 uniform vec2 u_dim;
@@ -88,6 +90,16 @@ void main() {
 	vec2 coord = vec2(reverse6(int(gl_FragCoord.x)), reverse6(int(gl_FragCoord.y)));
 //	vec2 coord = gl_FragCoord.xy;
 	vec2 k = 2.*pi*(coord - u_dim/2.)/u_scale;
-	gl_FragColor = vec4(h(k, u_time), 0, 0);
+	float lk = length(k);
+
+	vec2 v = h(k, u_time);
+	vec2 sx = cmul(v, vec2(0, k.x));
+	vec2 sy = cmul(v, vec2(0, k.y));
+	vec2 dx = cmul(v, vec2(0, lk < 0.001 ? 0. : -k.x/lk));
+	vec2 dy = cmul(v, vec2(0, lk < 0.001 ? 0. : -k.y/lk));
+
+	gl_FragData[0] = vec4(v, 0, 0); // Height
+	gl_FragData[1] = vec4(sx, sy); // Slope
+	gl_FragData[2] = vec4(dx, dy); // Displacement
 }
 

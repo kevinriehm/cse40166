@@ -1,8 +1,10 @@
 #version 100
 
+#extension GL_EXT_draw_buffers: require
+
 precision highp float;
 
-uniform sampler2D u_in;
+uniform sampler2D u_in[3];
 
 uniform vec2 u_dim;
 
@@ -23,11 +25,25 @@ void main() {
 	float bit2 = 2.*bit;
 	float x_e = floor(gl_FragCoord.x/bit2)*bit2 + mod(gl_FragCoord.x, bit);
 	float x_o = x_e + bit;
-	vec4 raw_e = texture2D(u_in, vec2(x_e, gl_FragCoord.y)/u_dim);
-	vec4 raw_o = texture2D(u_in, vec2(x_o, gl_FragCoord.y)/u_dim);
-	vec2 in_e = raw_e.rg;
-	vec2 in_o = raw_o.rg;
-	vec2 r = (in_e + cmul(cexp(2.*pi*gl_FragCoord.x/bit2), in_o))/2.;
-	gl_FragColor = vec4(r, 0, 0);
+
+	vec2 uroot = cexp(2.*pi*gl_FragCoord.x/bit2);
+
+	vec4 raw0_e = texture2D(u_in[0], vec2(x_e, gl_FragCoord.y)/u_dim);
+	vec4 raw0_o = texture2D(u_in[0], vec2(x_o, gl_FragCoord.y)/u_dim);
+	vec2 r0 = (raw0_e.rg + cmul(uroot, raw0_o.rg))/2.;
+
+	vec4 raw1_e = texture2D(u_in[1], vec2(x_e, gl_FragCoord.y)/u_dim);
+	vec4 raw1_o = texture2D(u_in[1], vec2(x_o, gl_FragCoord.y)/u_dim);
+	vec2 r1_0 = (raw1_e.rg + cmul(uroot, raw1_o.rg))/2.;
+	vec2 r1_1 = (raw1_e.ba + cmul(uroot, raw1_o.ba))/2.;
+
+	vec4 raw2_e = texture2D(u_in[2], vec2(x_e, gl_FragCoord.y)/u_dim);
+	vec4 raw2_o = texture2D(u_in[2], vec2(x_o, gl_FragCoord.y)/u_dim);
+	vec2 r2_0 = (raw2_e.rg + cmul(uroot, raw2_o.rg))/2.;
+	vec2 r2_1 = (raw2_e.ba + cmul(uroot, raw2_o.ba))/2.;
+
+	gl_FragData[0] = vec4(r0, 0, 0);
+	gl_FragData[1] = vec4(r1_0, r1_1);
+	gl_FragData[2] = vec4(r2_0, r2_1);
 }
 

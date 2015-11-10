@@ -2,19 +2,20 @@
 
 precision highp float;
 
-uniform sampler2D u_waves;
+uniform sampler2D u_waves[2];
 
 uniform vec3 u_color;
+uniform float u_scale;
 
 varying vec2 v_uv;
 varying vec3 v_xyz;
 
 void main() {
-	const vec3 light = vec3(0, 2, 0);
-	vec4 waves = texture2D(u_waves, v_uv);
-	vec3 normal = waves.gba;
-	gl_FragColor = vec4(u_color*waves.r*50., 1);
-//	gl_FragColor = vec4(u_color*waves.a, 1);
-//	gl_FragColor = vec4(u_color*dot(normal, normalize(light - v_xyz)), 1);
+	const vec3 lightdir = vec3(0, -1, -1);
+	vec4 waves1 = texture2D(u_waves[1], v_uv);
+	vec3 normal = normalize(vec3(-waves1.r, 1, -waves1.g));
+//	gl_FragColor = vec4(u_color*dot(normal, normalize(-lightdir)), 1);
+//	gl_FragColor = vec4(vec3(normal), 1);
+	gl_FragColor = vec4(waves1.g, waves1.a, 1, 1);
 }
 
