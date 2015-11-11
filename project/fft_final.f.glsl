@@ -22,6 +22,6 @@ void main() {
 	float dispy = sign*raw2.b;
 
 	gl_FragData[0] = vec4(height, dispx, dispy, 0);
-	gl_FragData[1] = vec4(slopex, slopey, 0.2, 0.8);
+	gl_FragData[1] = vec4(slopex, slopey, 0, 0);
 }
 

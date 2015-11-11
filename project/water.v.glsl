@@ -24,16 +24,16 @@ void main() {
 	vec2 coord = vec2(a_position.y == 0. ? roundx0 : a_position.y == 1. ? roundx1 : a_position.x,
 		a_position.x == 0. ? roundy0 : a_position.x == 1. ? roundy1 : a_position.y);
 	vec4 position = u_modelview*vec4(coord.x, 0, coord.y, 1);
-	vec2 texcoord = position.xz/position.w/u_scale;
+	vec2 texcoord = position.xz/u_scale;
 
-	vec4 waves = texture2D(u_waves[0], texcoord);
-	float height = waves.r;
-	vec2 disp = waves.gb;
+	vec4 waves0 = texture2D(u_waves[0], texcoord);
+	float height = waves0.r;
+	vec2 disp = waves0.gb;
 	position.y += height;
 	position.xz += u_choppiness*disp;
 
 	v_uv = texcoord;
-	v_xyz = position.xyz/position.w;
+	v_xyz = position.xyz;
 
 	gl_Position = u_camera*position;
 }

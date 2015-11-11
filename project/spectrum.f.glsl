@@ -8,6 +8,7 @@ uniform vec2 u_dim;
 uniform vec2 u_wind;
 uniform float u_amplitude;
 uniform float u_scale;
+uniform vec2 u_seed;
 
 uniform float u_time;
 
@@ -51,8 +52,8 @@ vec2 cmul(vec2 a, vec2 b) {
 }
 
 vec2 gauss2(vec4 seed) {
-	float u0 = rand(seed + vec4(1, 1, 1, 1));
-	float u1 = rand(seed + vec4(2, 2, 2, 2));
+	float u0 = rand(seed + vec4(73, 73, 73, 73));
+	float u1 = rand(seed + vec4(79, 79, 79, 79));
 	float x = sqrt(-2.*log(clamp(u0, 0.001, 1.)));
 	return x*vec2(cos(2.*pi*u1), sin(2.*pi*u1));
 }
@@ -64,7 +65,7 @@ float phillips(vec2 k) {
 	float lw = length(u_wind);
 	float L = lw*lw/g;
 
-	if(lk < 0.001)
+	if(lk < 0.001 || lw < 0.001)
 		return 0.;
 
 	return u_amplitude/sqr(sqr(lk))
@@ -74,9 +75,7 @@ float phillips(vec2 k) {
 }
 
 vec2 h0(vec2 k) {
-	return gauss2(vec4(k, u_wind))*sqrt(phillips(k)/2.);
-//	return gauss2(vec4(k, u_wind))/**vec2(sqrt(phillips(k)/2.))*/;
-//	return /*gauss2(vec4(k, u_wind))**/vec2(sqrt(phillips(k)/2.));
+	return gauss2(vec4(k, u_seed))*sqrt(phillips(k)/2.);
 }
 
 vec2 h(vec2 k, float t) {
@@ -88,15 +87,14 @@ vec2 h(vec2 k, float t) {
 
 void main() {
 	vec2 coord = vec2(reverse6(int(gl_FragCoord.x)), reverse6(int(gl_FragCoord.y)));
-//	vec2 coord = gl_FragCoord.xy;
 	vec2 k = 2.*pi*(coord - u_dim/2.)/u_scale;
 	float lk = length(k);
 
 	vec2 v = h(k, u_time);
 	vec2 sx = cmul(v, vec2(0, k.x));
 	vec2 sy = cmul(v, vec2(0, k.y));
-	vec2 dx = cmul(v, vec2(0, lk < 0.001 ? 0. : -k.x/lk));
-	vec2 dy = cmul(v, vec2(0, lk < 0.001 ? 0. : -k.y/lk));
+	vec2 dx = cmul(v, vec2(0, lk < 0.001 ? 0. : k.x/lk));
+	vec2 dy = cmul(v, vec2(0, lk < 0.001 ? 0. : k.y/lk));
 
 	gl_FragData[0] = vec4(v, 0, 0); // Height
 	gl_FragData[1] = vec4(sx, sy); // Slope

@@ -187,17 +187,29 @@ window.onload = function() {
 			window.requestAnimationFrame(render);
 	};
 
-	document.getElementById('wavesscale').onchange = function() {
+	document.getElementById('wavesscale').oninput = function() {
 		wavesscale = this.value;
 		document.getElementById('wavesscaledisplay').textContent = this.value;
 	};
-	document.getElementById('wavesscale').dispatchEvent(new Event('change'));
+	document.getElementById('wavesscale').dispatchEvent(new Event('input'));
 
-	document.getElementById('choppiness').onchange = function() {
+	document.getElementById('choppiness').oninput = function() {
 		choppiness = this.value;
 		document.getElementById('choppinessdisplay').textContent = this.value;
 	};
-	document.getElementById('choppiness').dispatchEvent(new Event('change'));
+	document.getElementById('choppiness').dispatchEvent(new Event('input'));
+
+	document.getElementById('windx').oninput = function() {
+		wind[0] = this.value;
+		document.getElementById('windxdisplay').textContent = this.value;
+	};
+	document.getElementById('windx').dispatchEvent(new Event('input'));
+
+	document.getElementById('windy').oninput = function() {
+		wind[1] = this.value;
+		document.getElementById('windydisplay').textContent = this.value;
+	};
+	document.getElementById('windy').dispatchEvent(new Event('input'));
 
 	canvas.tabIndex = 9999;
 	canvas.style.outline = 'none';
@@ -228,12 +240,16 @@ function build_program(vshader, fshader) {
 
 	for(var ui = 0; ui < nuniforms; ui++) {
 		var info = gl.getActiveUniform(program, ui);
-		var loc = gl.getUniformLocation(program, info.name);
-		var parts = info.name.match(array);
-		if(parts) {
-			program[parts[1]] = program[parts[1]] || [];
-			program[parts[1]][parts[2]] = loc;
-		} else program[info.name] = loc;
+
+		if(info.size > 1) {
+			var parts = info.name.match(array);
+
+			program[parts[1]] = [];
+			for(var i = 0; i < info.size; i++)
+				program[parts[1]].push(
+					gl.getUniformLocation(program, parts[1] + '[' + i + ']')
+				);
+		} else program[info.name] = gl.getUniformLocation(program, info.name);
 	}
 
 	for(var ai = 0; ai < nattribs; ai++) {
@@ -393,6 +409,7 @@ function render(now) {
 	gl.uniform2fv(programs.spectrum.u_wind, wind);
 	gl.uniform1f(programs.spectrum.u_amplitude, wavesamplitude);
 	gl.uniform1f(programs.spectrum.u_scale, wavesscale);
+	gl.uniform2f(programs.spectrum.u_seed, 8, 8);
 
 	gl.uniform1f(programs.spectrum.u_time, nowsec);
 
@@ -400,12 +417,27 @@ function render(now) {
 
 	// Rendering to wave FBO
 
+	gl.disable(gl.DEPTH_TEST);
+
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, textures.fft_height[0]);
+	gl.activeTexture(gl.TEXTURE1);
+	gl.bindTexture(gl.TEXTURE_2D, textures.fft_height[1]);
+
+	gl.activeTexture(gl.TEXTURE2);
+	gl.bindTexture(gl.TEXTURE_2D, textures.fft_slope[0]);
+	gl.activeTexture(gl.TEXTURE3);
+	gl.bindTexture(gl.TEXTURE_2D, textures.fft_slope[1]);
+
+	gl.activeTexture(gl.TEXTURE4);
+	gl.bindTexture(gl.TEXTURE_2D, textures.fft_disp[0]);
+	gl.activeTexture(gl.TEXTURE5);
+	gl.bindTexture(gl.TEXTURE_2D, textures.fft_disp[1]);
+
 	var niter = Math.round(Math.log(wavesdim)/Math.log(2));
 
 	// Horizontal FFT
 	gl.useProgram(programs.fft_x);
-
-	gl.disable(gl.DEPTH_TEST);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
 	gl.enableVertexAttribArray(programs.fft_x.a_position);
@@ -416,19 +448,10 @@ function render(now) {
 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft[texin^1]);
 
-		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_2D, textures.fft_height[texin]);
-
-		gl.activeTexture(gl.TEXTURE1);
-		gl.bindTexture(gl.TEXTURE_2D, textures.fft_slope[texin]);
-
-		gl.activeTexture(gl.TEXTURE2);
-		gl.bindTexture(gl.TEXTURE_2D, textures.fft_disp[texin]);
-
-		gl.uniform1iv(programs.fft_x.u_in[0], [0, 1, 2]);
-
+		gl.uniform1i(programs.fft_x.u_in[0], 0 + texin);
+		gl.uniform1i(programs.fft_x.u_in[1], 2 + texin);
+		gl.uniform1i(programs.fft_x.u_in[2], 4 + texin);
 		gl.uniform2f(programs.fft_x.u_dim, wavesdim, wavesdim);
-
 		gl.uniform1f(programs.fft_x.u_stage, i);
 
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
@@ -436,8 +459,6 @@ function render(now) {
 
 	// Vertical FFT
 	gl.useProgram(programs.fft_y);
-
-	gl.disable(gl.DEPTH_TEST);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
 	gl.enableVertexAttribArray(programs.fft_y.a_position);
@@ -448,19 +469,10 @@ function render(now) {
 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft[texin^1]);
 
-		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_2D, textures.fft_height[texin]);
-
-		gl.activeTexture(gl.TEXTURE1);
-		gl.bindTexture(gl.TEXTURE_2D, textures.fft_slope[texin]);
-
-		gl.activeTexture(gl.TEXTURE2);
-		gl.bindTexture(gl.TEXTURE_2D, textures.fft_disp[texin]);
-
-		gl.uniform1iv(programs.fft_y.u_in[0], [0, 1, 2]);
-
+		gl.uniform1i(programs.fft_y.u_in[0], 0 + texin);
+		gl.uniform1i(programs.fft_y.u_in[1], 2 + texin);
+		gl.uniform1i(programs.fft_y.u_in[2], 4 + texin);
 		gl.uniform2f(programs.fft_y.u_dim, wavesdim, wavesdim);
-
 		gl.uniform1f(programs.fft_y.u_stage, i);
 
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
@@ -477,17 +489,9 @@ function render(now) {
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves);
 
-	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_2D, textures.fft_height[0]);
-
-	gl.activeTexture(gl.TEXTURE1);
-	gl.bindTexture(gl.TEXTURE_2D, textures.fft_slope[0]);
-
-	gl.activeTexture(gl.TEXTURE2);
-	gl.bindTexture(gl.TEXTURE_2D, textures.fft_disp[0]);
-
-	gl.uniform1i(programs.fft_final.u_in[0], [0, 1, 2]);
-
+	gl.uniform1i(programs.fft_final.u_in[0], 0);
+	gl.uniform1i(programs.fft_final.u_in[1], 2);
+	gl.uniform1i(programs.fft_final.u_in[2], 4);
 	gl.uniform2f(programs.fft_final.u_dim, wavesdim, wavesdim);
 
 	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
@@ -517,10 +521,11 @@ function render(now) {
 
 	gl.activeTexture(gl.TEXTURE0);
 	gl.bindTexture(gl.TEXTURE_2D, textures.waves0);
-	gl.uniform1i(programs.water.u_waves[0], 0);
 
 	gl.activeTexture(gl.TEXTURE1);
 	gl.bindTexture(gl.TEXTURE_2D, textures.waves1);
+
+	gl.uniform1i(programs.water.u_waves[0], 0);
 	gl.uniform1i(programs.water.u_waves[1], 1);
 
 	gl.uniformMatrix4fv(programs.water.u_camera, gl.FALSE, flatten(cam));

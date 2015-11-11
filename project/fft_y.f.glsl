@@ -26,19 +26,21 @@ void main() {
 	float y_e = floor(gl_FragCoord.y/bit2)*bit2 + mod(gl_FragCoord.y, bit);
 	float y_o = y_e + bit;
 
+	vec2 c_e = vec2(gl_FragCoord.x, y_e)/u_dim;
+	vec2 c_o = vec2(gl_FragCoord.x, y_o)/u_dim;
 	vec2 uroot = cexp(2.*pi*gl_FragCoord.y/bit2);
 
-	vec4 raw0_e = texture2D(u_in[0], vec2(gl_FragCoord.x, y_e)/u_dim);
-	vec4 raw0_o = texture2D(u_in[0], vec2(gl_FragCoord.x, y_o)/u_dim);
+	vec4 raw0_e = texture2D(u_in[0], c_e);
+	vec4 raw0_o = texture2D(u_in[0], c_o);
 	vec2 r0 = (raw0_e.rg + cmul(uroot, raw0_o.rg))/2.;
 
-	vec4 raw1_e = texture2D(u_in[1], vec2(gl_FragCoord.x, y_e)/u_dim);
-	vec4 raw1_o = texture2D(u_in[1], vec2(gl_FragCoord.y, y_e)/u_dim);
+	vec4 raw1_e = texture2D(u_in[1], c_e);
+	vec4 raw1_o = texture2D(u_in[1], c_o);
 	vec2 r1_0 = (raw1_e.rg + cmul(uroot, raw1_o.rg))/2.;
 	vec2 r1_1 = (raw1_e.ba + cmul(uroot, raw1_o.ba))/2.;
 
-	vec4 raw2_e = texture2D(u_in[2], vec2(gl_FragCoord.x, y_e)/u_dim);
-	vec4 raw2_o = texture2D(u_in[2], vec2(gl_FragCoord.x, y_o)/u_dim);
+	vec4 raw2_e = texture2D(u_in[2], c_e);
+	vec4 raw2_o = texture2D(u_in[2], c_o);
 	vec2 r2_0 = (raw2_e.rg + cmul(uroot, raw2_o.rg))/2.;
 	vec2 r2_1 = (raw2_e.ba + cmul(uroot, raw2_o.ba))/2.;
 
