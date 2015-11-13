@@ -35,8 +35,16 @@ int reverse4(int x) {
 	return reverse2(x/4) + 4*reverse2(x - x/4*4);
 }
 
-int reverse6(int x) {
-	return reverse4(x/4) + 16*reverse2(x - x/4*4);
+int reverse8(int x) {
+	return reverse4(x/16) + 16*reverse4(x - x/16*16);
+}
+
+int reverse_x(int x) {
+	return reverse8(x)/int(exp2(8. - log2(u_dim.x)));
+}
+
+int reverse_y(int x) {
+	return reverse8(x)/int(exp2(8. - log2(u_dim.y)));
 }
 
 vec2 cconj(vec2 a) {
@@ -86,7 +94,7 @@ vec2 h(vec2 k, float t) {
 }
 
 void main() {
-	vec2 coord = vec2(reverse6(int(gl_FragCoord.x)), reverse6(int(gl_FragCoord.y)));
+	vec2 coord = vec2(reverse_x(int(gl_FragCoord.x)), reverse_y(int(gl_FragCoord.y)));
 	vec2 k = 2.*pi*(coord - u_dim/2.)/u_scale;
 	float lk = length(k);
 

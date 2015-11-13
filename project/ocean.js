@@ -1,5 +1,6 @@
 // Global state
 var gl;
+var glaniso;
 var glhalf;
 var glhalflinear;
 var glmrt;
@@ -12,6 +13,7 @@ var textures;
 var camera;
 
 // Geometry
+var dome;
 var quad;
 var water;
 
@@ -19,28 +21,34 @@ var cells;
 
 // Configuration
 var choppiness;
+var daytime;
 var horizon;
 var lodbias;
+var sky;
 var waterdim;
 var wavesamplitude;
 var wavesdim;
 var wavesscale;
 var wind;
+var wireframe;
 
 var playing;
 
 window.onload = function() {
 	choppiness = 1; // Scaling factor for displacement vector
+	daytime = 0.25; // Time of day (for Sun position)
 	horizon = 1000; // Maximum distance of water cells
-	lodbias = 0.2; // Limit factor of cell division
+	lodbias = 1; // Limit factor of cell division
+	sky = vec3(0.69, 0.84, 1); // Sky color
 	waterdim = 8; // Maximum resolution of a single water cell
 	wavesamplitude = 1000; // Height of waves
 	wavesdim = 64; // Resolution of wave heightmap
 	wavesscale = 40; // World-space size of heightmap
 	wind = vec2(8, 8); // Wind vector
+	wireframe = false; // Lines (instead of triangles?)
 
 	camera = {
-		xyz: vec3(0, 6, -5),
+		xyz: vec3(0, 10, 0),
 		rot: vec3(0, 0, 0)
 	};
 
@@ -49,9 +57,13 @@ window.onload = function() {
 	gl = WebGLUtils.setupWebGL(canvas);
 	if(!gl) alert('WebGL unavailable');
 
+	glaniso = gl.getExtension('EXT_texture_filter_anisotropic');
 	glhalf = gl.getExtension('OES_texture_half_float');
 	glhalflinear = gl.getExtension('OES_texture_half_float_linear');
 	glmrt = gl.getExtension('WEBGL_draw_buffers');
+
+	if(gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) < 1)
+		alert('FATAL: MAX_VERTEX_TEXTURE_IMAGE_UNITS must be at least 1');
 
 	gl.clearColor(0, 0, 0, 1);
 
@@ -60,6 +72,7 @@ window.onload = function() {
 		fft_final: build_program('fft_final.v.glsl', 'fft_final.f.glsl'),
 		fft_x: build_program('fft_x.v.glsl', 'fft_x.f.glsl'),
 		fft_y: build_program('fft_y.v.glsl', 'fft_y.f.glsl'),
+		sky: build_program('sky.v.glsl', 'sky.f.glsl'),
 		spectrum: build_program('spectrum.v.glsl', 'spectrum.f.glsl'),
 		water: build_program('water.v.glsl', 'water.f.glsl')
 	};
@@ -90,13 +103,13 @@ window.onload = function() {
 	gl.bindTexture(gl.TEXTURE_2D, textures.waves0);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wavesdim, wavesdim, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
 
 	textures.waves1 = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, textures.waves1);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wavesdim, wavesdim, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
 
 	fbos = {};
 
@@ -110,6 +123,9 @@ window.onload = function() {
 		glmrt.COLOR_ATTACHMENT1_WEBGL,
 		glmrt.COLOR_ATTACHMENT2_WEBGL
 	]);
+
+	if(gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
+		alert('FATAL: rendering to float-point textures is not supported');
 
 	fbos.fft = [
 		fbos.spectrum,
@@ -136,6 +152,25 @@ window.onload = function() {
 	]);
 
 	// Set up geometry
+	dome = {
+		points: [
+			vec3( 0,  1,  0),
+			vec3( 0,  0,  1),
+			vec3(-1,  0, -1),
+			vec3( 1,  0, -1),
+			vec3( 0, -1,  0)
+		],
+		indices: [1, 3, 0, 2, 1, 4, 3, 2]
+	};
+
+	dome.points.buffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, dome.points.buffer);
+	gl.bufferData(gl.ARRAY_BUFFER, flatten(dome.points), gl.STATIC_DRAW);
+
+	dome.indices.buffer = gl.createBuffer();
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, dome.indices.buffer);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint8Array(dome.indices), gl.STATIC_DRAW);
+
 	quad = [
 		vec2(-1, -1),
 		vec2( 1, -1),
@@ -173,7 +208,7 @@ window.onload = function() {
 
 	water.indices.buffer = gl.createBuffer();
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, water.indices.buffer);
-		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(water.indices), gl.STATIC_DRAW);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(water.indices), gl.STATIC_DRAW);
 
 	cells = gen_cells();
 
@@ -187,29 +222,61 @@ window.onload = function() {
 			window.requestAnimationFrame(render);
 	};
 
+	document.getElementById('daytime').oninput = function() {
+		daytime = Number(this.value);
+		var minstr = String(Math.floor(60*(daytime - Math.floor(daytime))));
+		if(minstr.length === 1)
+			minstr = '0' + minstr;
+		document.getElementById('daytimedisplay').textContent
+			= Math.floor(daytime) + ':' + minstr;
+	};
+	document.getElementById('daytime').dispatchEvent(new Event('input'));
+
 	document.getElementById('wavesscale').oninput = function() {
-		wavesscale = this.value;
+		wavesscale = Number(this.value);
 		document.getElementById('wavesscaledisplay').textContent = this.value;
 	};
 	document.getElementById('wavesscale').dispatchEvent(new Event('input'));
 
 	document.getElementById('choppiness').oninput = function() {
-		choppiness = this.value;
+		choppiness = Number(this.value);
 		document.getElementById('choppinessdisplay').textContent = this.value;
 	};
 	document.getElementById('choppiness').dispatchEvent(new Event('input'));
 
 	document.getElementById('windx').oninput = function() {
-		wind[0] = this.value;
+		wind[0] = Number(this.value);
 		document.getElementById('windxdisplay').textContent = this.value;
 	};
 	document.getElementById('windx').dispatchEvent(new Event('input'));
 
 	document.getElementById('windy').oninput = function() {
-		wind[1] = this.value;
+		wind[1] = Number(this.value);
 		document.getElementById('windydisplay').textContent = this.value;
 	};
 	document.getElementById('windy').dispatchEvent(new Event('input'));
+
+	document.getElementById('anisotropy').max
+		= Math.round(Math.log(gl.getParameter(glaniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT))/Math.log(2));
+	document.getElementById('anisotropy').oninput = function() {
+		var anisotropy = 1 << this.value;
+
+		gl.bindTexture(gl.TEXTURE_2D, textures.waves0);
+		gl.texParameteri(gl.TEXTURE_2D, glaniso.TEXTURE_MAX_ANISOTROPY_EXT, anisotropy);
+
+		gl.bindTexture(gl.TEXTURE_2D, textures.waves1);
+		gl.texParameteri(gl.TEXTURE_2D, glaniso.TEXTURE_MAX_ANISOTROPY_EXT, anisotropy);
+
+		gl.bindTexture(gl.TEXTURE_2D, null);
+
+		document.getElementById('anisotropydisplay').textContent = anisotropy;
+	};
+	document.getElementById('anisotropy').dispatchEvent(new Event('input'));
+
+	document.getElementById('wireframe').onchange = function() {
+		wireframe = this.checked;
+	};
+	document.getElementById('wireframe').dispatchEvent(new Event('change'));
 
 	canvas.tabIndex = 9999;
 	canvas.style.outline = 'none';
@@ -223,6 +290,8 @@ window.onload = function() {
 
 		// Reasonable range clamping
 		camera.rot[0] = Math.max(-90, Math.min(camera.rot[0], 90));
+
+		e.stopPropagation();
 	};
 
 	playing = false;
@@ -260,6 +329,28 @@ function build_program(vshader, fshader) {
 	return program;
 }
 
+// Produces a vector pointing towards the Sun
+function calc_sun_direction() {
+	var latitude = 0;
+	var longitude = 0;
+	var calendarday = 1;
+	var stdmeridian = 0;
+
+	var declination = 0.4093*Math.sin(2*Math.PI,(calendarday - 81)/368);
+	var suntime = daytime + 0.170*Math.sin(4*Math.PI*(calendarday - 80)/373)
+		- 0.129*Math.sin(2*Math.PI*(calendarday - 8)/355)
+		+ 12*(stdmeridian - longitude)/Math.PI;
+
+	var theta = Math.PI/2 - Math.asin(Math.sin(latitude)*Math.sin(declination)
+		- Math.cos(latitude)*Math.cos(declination)*Math.cos(Math.PI*suntime/12));
+	var phi = Math.atan(-Math.cos(declination)*Math.sin(Math.PI*suntime/12)
+		/(Math.cos(latitude)*Math.sin(declination)
+			- Math.sin(latitude)*Math.cos(declination)*Math.cos(Math.PI*suntime/12)));
+
+	return vec3(Math.cos(phi), Math.cos(theta), -Math.sin(theta)*Math.sin(phi));
+
+}
+
 // Creates a texture suitable for an intermediary step in the FFT process
 function gen_wave_texture() {
 	var tex = gl.createTexture();
@@ -276,7 +367,7 @@ function gen_cells() {
 	var cells = (function split_cell(cell) {
 		var x1 = cell.x - camera.xyz[0];
 		var x2 = cell.x - camera.xyz[0] + cell.w;
-		var y = Math.abs(camera.xyz[1]);
+		var y = Math.max(1, Math.abs(camera.xyz[1]));
 		var z1 = cell.z - camera.xyz[2];
 		var z2 = cell.z - camera.xyz[2] + cell.h;
 
@@ -286,7 +377,7 @@ function gen_cells() {
 		var lod3 = Math.atan(x2*z2/Math.sqrt(x2*x2 + y*y + z2*z2));
 
 		var lod = lod0 - lod1 - lod2 + lod3;
-
+cell.lod = lod;
 		if(lod < lodbias) {
 			cell.mv = mat4();
 			cell.mv = mult(scalem(cell.w, 1, cell.h), cell.mv);
@@ -501,6 +592,27 @@ function render(now) {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.clear(gl.COLOR_BUFFER_BIT);
 
+	// Sky
+	gl.useProgram(programs.sky);
+
+	gl.disable(gl.DEPTH_TEST);
+
+	camrot = mat4();
+	camrot = mult(rotateZ(-camera.rot[2]), camrot);
+	camrot = mult(rotateY(-camera.rot[1]), camrot);
+	camrot = mult(rotateX(-camera.rot[0]), camrot);
+	camrot = mult(perspective(100, 1/1, 0.1, horizon), camrot);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, dome.points.buffer);
+	gl.enableVertexAttribArray(programs.sky.a_position);
+	gl.vertexAttribPointer(programs.sky.a_position, 3, gl.FLOAT, gl.FALSE, 0, 0);
+
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, dome.indices.buffer);
+
+	gl.uniformMatrix4fv(programs.sky.u_camera, gl.FALSE, flatten(camrot));
+
+	gl.drawElements(gl.TRIANGLE_STRIP, dome.indices.length, gl.UNSIGNED_BYTE, 0);
+
 	// Water grid
 	gl.useProgram(programs.water);
 
@@ -521,17 +633,23 @@ function render(now) {
 
 	gl.activeTexture(gl.TEXTURE0);
 	gl.bindTexture(gl.TEXTURE_2D, textures.waves0);
+	gl.generateMipmap(gl.TEXTURE_2D);
 
 	gl.activeTexture(gl.TEXTURE1);
 	gl.bindTexture(gl.TEXTURE_2D, textures.waves1);
+	gl.generateMipmap(gl.TEXTURE_2D);
 
 	gl.uniform1i(programs.water.u_waves[0], 0);
 	gl.uniform1i(programs.water.u_waves[1], 1);
 
 	gl.uniformMatrix4fv(programs.water.u_camera, gl.FALSE, flatten(cam));
-	gl.uniform3f(programs.water.u_color, 0.1, 0.4, 0.6);
+	gl.uniform3fv(programs.water.u_cameraxyz, camera.xyz);
+	gl.uniform3f(programs.water.u_color, 0, 0.2, 0.3);
 	gl.uniform1f(programs.water.u_choppiness, choppiness);
+	gl.uniform1f(programs.water.u_daytime, daytime);
 	gl.uniform1f(programs.water.u_scale, wavesscale);
+	gl.uniform3fv(programs.water.u_sky, sky);
+	gl.uniform3fv(programs.water.u_sundir, calc_sun_direction());
 
 	cells.forEach(function(cell) {
 		gl.uniformMatrix4fv(programs.water.u_modelview, gl.FALSE, flatten(cell.mv));
@@ -543,7 +661,8 @@ function render(now) {
 			(1 << cell.seams.n)/waterdim
 		]);
 
-		gl.drawElements(gl.TRIANGLE_STRIP, water.indices.length, gl.UNSIGNED_SHORT, 0);
+		gl.drawElements(wireframe ? gl.LINE_STRIP : gl.TRIANGLE_STRIP,
+			water.indices.length, gl.UNSIGNED_SHORT, 0);
 	});
 
 	if(playing)
