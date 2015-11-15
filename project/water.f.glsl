@@ -3,13 +3,13 @@
 precision highp float;
 
 uniform sampler2D u_waves[2];
+uniform samplerCube u_sky;
 
 uniform vec3 u_cameraxyz;
 uniform float u_scale;
 uniform float u_daytime;
 
 uniform vec3 u_color;
-uniform vec3 u_sky;
 
 uniform vec3 u_sundir;
 
@@ -32,10 +32,11 @@ void main() {
 
 	vec3 v = normalize(u_cameraxyz - v_xyz);
 	vec3 r = reflect(-v, normal);
+	r.y = abs(r.y); // Hack, since we aren't doing inter-wave reflections
 
 	vec3 sun = step(sunedge, dot(u_sundir, r))*sunpower*suncolor;
 
-	vec3 sky = normalize(r);//u_sky*suncolor;
+	vec3 sky = max(vec3(0), textureCube(u_sky, r).rgb);
 
 	const float n1 = 1., n2 = 1.333;
 	float r0 = sqr((n1 - n2)/(n1 + n2));
@@ -43,8 +44,10 @@ void main() {
 
 	vec3 rgb = (1. - fresnel)*u_color*suncolor + fresnel*(sky + sun);
 
+	rgb *= 1./5.;
 	float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+	rgb /= 1. + lum;
 
-	gl_FragColor = vec4(rgb/(1. + lum), 1);
+	gl_FragColor = vec4(rgb, 1);
 }
 
