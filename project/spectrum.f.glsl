@@ -87,9 +87,8 @@ vec2 h0(vec2 k) {
 }
 
 vec2 h(vec2 k, float t) {
-	const float w0 = 2.*pi/200.; // Base frequency
-//	float wt = floor(sqrt(g*length(k))/w0)*w0*t;
-	float wt = sqrt(g*length(k))*t;
+	const float w0 = 2.*pi/256.; // Base frequency
+	float wt = floor(sqrt(g*length(k))/w0)*w0*t;
 	return cmul(h0(k), cexp(wt)) + cmul(cconj(h0(-k)), cexp(-wt));
 }
 

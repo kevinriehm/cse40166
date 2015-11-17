@@ -4,7 +4,6 @@ precision highp float;
 
 uniform vec3 u_sundir;
 uniform float u_suntheta;
-uniform float u_time;
 uniform float u_turbidity;
 
 varying vec3 v_xyz;
@@ -29,72 +28,6 @@ float zenith_xy(mat4 coeff) {
 float zenith_Y() {
 	float chi = (4./9. - u_turbidity/120.)*(pi - 2.*u_suntheta);
 	return (4.0453*u_turbidity - 4.9710)*tan(chi) - 0.2155*u_turbidity + 2.4192;
-}
-
-float rand(vec3 seed) {
-	return fract(43758.5453*sin(dot(seed, vec3(12.9898, 78.233, 89.3414))));
-}
-
-vec3 simplex3_grad(vec3 coord) {
-	const float period = 256.;
-
-	int i = int(12.*rand(mod(coord, period)));
-
-	if(i ==  0) return vec3( 0, -1, -1);
-	if(i ==  1) return vec3( 0, -1,  1);
-	if(i ==  2) return vec3( 0,  1, -1);
-	if(i ==  3) return vec3( 0,  1,  1);
-	if(i ==  4) return vec3(-1,  0, -1);
-	if(i ==  5) return vec3(-1,  0,  1);
-	if(i ==  6) return vec3(-1, -1,  0);
-	if(i ==  7) return vec3(-1,  1,  0);
-	if(i ==  8) return vec3( 1,  0, -1);
-	if(i ==  9) return vec3( 1,  0,  1);
-	if(i == 10) return vec3( 1, -1,  0);
-	            return vec3( 1,  1,  0);
-}
-
-float simplex3(vec3 coord) {
-	vec3 skew = coord + vec3(coord.x + coord.y + coord.z)/3.;
-	vec3 bskew = floor(skew);
-	vec3 base = bskew - vec3(bskew.x + bskew.y + bskew.z)/6.;
-	vec3 offset = coord - base;
-
-	vec3 cskew1, cskew2;
-	if(offset.x > offset.y) {
-		if(offset.y > offset.z) {
-			cskew1 = vec3(1, 0, 0);
-			cskew2 = vec3(1, 1, 0);
-		} else if(offset.x > offset.z) {
-			cskew1 = vec3(1, 0, 0);
-			cskew2 = vec3(1, 0, 1);
-		} else {
-			cskew1 = vec3(0, 0, 1);
-			cskew2 = vec3(1, 0, 1);
-		}
-	} else {
-		if(offset.z > offset.y) {
-			cskew1 = vec3(0, 0, 1);
-			cskew2 = vec3(0, 1, 1);
-		} else if(offset.z > offset.x) {
-			cskew1 = vec3(0, 1, 0);
-			cskew2 = vec3(0, 1, 1);
-		} else {
-			cskew1 = vec3(0, 1, 0);
-			cskew2 = vec3(1, 1, 0);
-		}
-	}
-
-	vec3 c1 = offset - cskew1 + 1./6.;
-	vec3 c2 = offset - cskew2 + 1./3.;
-	vec3 c3 = offset - 1./2.;
-//return c1.y;
-	return 32.*(
-		  sqr(sqr(max(0., 0.5 - dot(offset, offset))))*dot(offset, simplex3_grad(bskew))
-		+ sqr(sqr(max(0., 0.5 - dot(c1, c1))))*dot(c1, simplex3_grad(bskew + cskew1))
-		+ sqr(sqr(max(0., 0.5 - dot(c2, c2))))*dot(c2, simplex3_grad(bskew + cskew2))
-		+ sqr(sqr(max(0., 0.5 - dot(c3, c3))))*dot(c3, simplex3_grad(bskew + vec3(1)))
-	);
 }
 
 void main() {
@@ -133,8 +66,7 @@ void main() {
 	float E_Y = -0.0670*u_turbidity + 0.3703;
 
 	// View angles
-	float theta = clamp(atan(length(v_xyz.xz), v_xyz.y), 0., pi/2.);
-	float phi = atan(v_xyz.z, v_xyz.x);
+	float theta = clamp(atan(length(v_xyz.xz), v_xyz.y), 0., pi/2. - 0.01);
 	float gamma = acos(dot(u_sundir, normalize(v_xyz)));
 
 	// CIE xyY color space via fit model
@@ -156,28 +88,10 @@ void main() {
 	)*XYZ;
 	rgb = max(vec3(0), rgb);
 
-	// The Sun itself
-	rgb += smoothstep(0.99, 0.999, dot(u_sundir, normalize(v_xyz)))*vec3(10000);
-
 	// Handle sunrise and sunset
 	const vec2 sunset = vec2(pi/2. + 0.2, pi/2. + 0.5);
 	rgb = (1. - smoothstep(sunset[0], sunset[1], u_suntheta))*rgb;
 
-	// Perlin noise clouds
-	const float earthradius = 6371.; // Scaled by 1/1000
-	const float cloudheight = 2.;    // for float range
-	vec2 cloudcoord = 8.
-		*(theta - asin(earthradius*sin(theta)/(earthradius + cloudheight)))
-		*normalize(v_xyz.xz);
-
-	float cloud = ((
-		  simplex3(vec3( 8.*cloudcoord, u_time/ 8.))
-		+ simplex3(vec3(16.*cloudcoord, u_time/16.))
-	)/2. + 1.)/2.;
-
-	cloud *= smoothstep(0.2, 0.21, cloud);
-//	rgb = mix(rgb, vec3(1), pow(cloud, 1./3.));
-
-	gl_FragColor = vec4(rgb, 1);
+	gl_FragColor = vec4(rgb, 0);
 }
 

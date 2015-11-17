@@ -40,11 +40,11 @@ window.onload = function() {
 	daytime = 0.25; // Time of day (for Sun position)
 	horizon = 1000; // Maximum distance of water cells
 	lodbias = 1; // Limit factor of cell division
-	skyres = 128; // Resolution of the skymap
+	skyres = 32; // Resolution of the skymap
 	turbidity = 1; // Atomospheric haze
 	waterdim = 8; // Maximum resolution of a single water cell
-	wavesamplitude = 1000; // Height of waves
-	wavesdim = 64; // Resolution of wave heightmap
+	wavesamplitude = 10000; // Height of waves
+	wavesdim = 128; // Resolution of wave heightmap
 	wavesscale = 40; // World-space size of heightmap
 	wind = vec2(8, 8); // Wind vector
 	wireframe = false; // Lines (instead of triangles?)
@@ -647,7 +647,6 @@ function render(now) {
 
 	gl.uniform3fv(programs.sky.u_sundir, suninfo.dir);
 	gl.uniform1f(programs.sky.u_suntheta, suninfo.theta);
-	gl.uniform1f(programs.sky.u_time, nowsec);
 	gl.uniform1f(programs.sky.u_turbidity, turbidity);
 
 	for(var i = 0; i < 5; i++) {
@@ -682,8 +681,14 @@ function render(now) {
 	gl.activeTexture(gl.TEXTURE0);
 	gl.bindTexture(gl.TEXTURE_CUBE_MAP, textures.sky);
 
-	gl.uniformMatrix4fv(programs.dome.u_camera, gl.FALSE, flatten(camrot));
 	gl.uniform1i(programs.dome.u_sky, 0);
+
+	gl.uniformMatrix4fv(programs.dome.u_camera, gl.FALSE, flatten(camrot));
+	gl.uniform3fv(programs.dome.u_sundir, suninfo.dir);
+	gl.uniform1f(programs.dome.u_suntheta, suninfo.theta);
+	gl.uniform1f(programs.dome.u_time, nowsec);
+	gl.uniform1f(programs.dome.u_turbidity, turbidity);
+	gl.uniform2fv(programs.dome.u_wind, wind);
 
 	gl.drawElements(gl.TRIANGLE_STRIP, dome.indices.length, gl.UNSIGNED_BYTE, 0);
 
@@ -724,9 +729,10 @@ function render(now) {
 	gl.uniform3fv(programs.water.u_cameraxyz, camera.xyz);
 	gl.uniform3f(programs.water.u_color, 0, 0.2, 0.3);
 	gl.uniform1f(programs.water.u_choppiness, choppiness);
-	gl.uniform1f(programs.water.u_daytime, daytime);
 	gl.uniform1f(programs.water.u_scale, wavesscale);
 	gl.uniform3fv(programs.water.u_sundir, suninfo.dir);
+	gl.uniform1f(programs.water.u_suntheta, suninfo.theta);
+	gl.uniform1f(programs.water.u_turbidity, turbidity);
 
 	cells.forEach(function(cell) {
 		gl.uniformMatrix4fv(programs.water.u_modelview, gl.FALSE, flatten(cell.mv));
