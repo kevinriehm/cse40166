@@ -92,12 +92,13 @@ void main() {
 	float r0 = sqr((n1 - n2)/(n1 + n2));
 	float fresnel = r0 + (1. - r0)*pow(1. - max(0., dot(normal, v)), 5.);
 
-	vec3 rgb = mix(u_color, sky + sun, fresnel);
-
 	// Cresting foam
-	rgb += sunlight/100.*max(0., dot(u_sundir, vec3(0, 1, 0)))
-		*smoothstep(1. - u_foaminess, 1., 1. - v_jacobian)
+	vec3 foam = sunlight/100.*max(0., dot(u_sundir, vec3(0, 1, 0)))
 		*(smooth_rand2(400.*v_uv) + smooth_rand2(200.*v_uv))/2.;
+	float foaminess = smoothstep(1. - u_foaminess, 1., 1. - v_jacobian);
+
+	vec3 rgb = mix(u_color, sky + (foaminess > 0. ? vec3(0) : sun), fresnel)
+		+ foam*foaminess*(1. + fresnel);
 
 	rgb /= 5.;
 	float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
