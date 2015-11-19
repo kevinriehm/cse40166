@@ -1,10 +1,10 @@
 #version 100
 
-#extension GL_EXT_draw_buffers: require
-
 precision highp float;
 
 uniform sampler2D u_in[3];
+
+uniform int u_output;
 
 uniform vec2 u_dim;
 
@@ -21,7 +21,7 @@ void main() {
 	float dispx = sign*raw2.r;
 	float dispy = sign*raw2.b;
 
-	gl_FragData[0] = vec4(height, dispx, dispy, 0);
-	gl_FragData[1] = vec4(slopex, slopey, 0, 0);
+	if(u_output == 0) gl_FragColor = vec4(height, dispx, dispy, 0);
+	if(u_output == 1) gl_FragColor = vec4(slopex, slopey, 0, 0);
 }
 

@@ -1,8 +1,7 @@
 #version 100
 
-#extension GL_EXT_draw_buffers: require
-
 precision highp float;
+precision highp int;
 
 uniform vec2 u_dim;
 uniform vec2 u_wind;
@@ -11,6 +10,8 @@ uniform float u_scale;
 uniform vec2 u_seed;
 
 uniform float u_time;
+
+uniform int u_output;
 
 const float g = 9.8;
 const float pi = 3.141592653;
@@ -39,12 +40,16 @@ int reverse8(int x) {
 	return reverse4(x/16) + 16*reverse4(x - x/16*16);
 }
 
+int reverse16(int x) {
+	return reverse8(x/256) + 256*reverse8(x - x/256*256);
+}
+
 int reverse_x(int x) {
-	return reverse8(x)/int(exp2(8. - log2(u_dim.x)));
+	return reverse16(x)/int(exp2(16. - log2(u_dim.x)));
 }
 
 int reverse_y(int x) {
-	return reverse8(x)/int(exp2(8. - log2(u_dim.y)));
+	return reverse16(x)/int(exp2(16. - log2(u_dim.y)));
 }
 
 vec2 cconj(vec2 a) {
@@ -103,8 +108,8 @@ void main() {
 	vec2 dx = cmul(v, vec2(0, lk < 0.001 ? 0. : k.x/lk));
 	vec2 dy = cmul(v, vec2(0, lk < 0.001 ? 0. : k.y/lk));
 
-	gl_FragData[0] = vec4(v, 0, 0); // Height
-	gl_FragData[1] = vec4(sx, sy); // Slope
-	gl_FragData[2] = vec4(dx, dy); // Displacement
+	if(u_output == 0) gl_FragColor = vec4(v, 0, 0); // Height
+	if(u_output == 1) gl_FragColor = vec4(sx, sy); // Slope
+	if(u_output == 2) gl_FragColor = vec4(dx, dy); // Displacement
 }
 

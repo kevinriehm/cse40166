@@ -3,7 +3,6 @@ var gl;
 var glaniso;
 var glhalf;
 var glhalflinear;
-var glmrt;
 
 var programs;
 
@@ -64,7 +63,6 @@ window.onload = function() {
 	glaniso = gl.getExtension('EXT_texture_filter_anisotropic');
 	glhalf = gl.getExtension('OES_texture_half_float');
 	glhalflinear = gl.getExtension('OES_texture_half_float_linear');
-	glmrt = gl.getExtension('WEBGL_draw_buffers');
 
 	if(gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) < 1)
 		alert('FATAL: MAX_VERTEX_TEXTURE_IMAGE_UNITS must be at least 1');
@@ -129,43 +127,64 @@ window.onload = function() {
 
 	fbos = {};
 
-	fbos.spectrum = gl.createFramebuffer();
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT0_WEBGL, gl.TEXTURE_2D, textures.spectrum_height, 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT1_WEBGL, gl.TEXTURE_2D, textures.spectrum_slope, 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT2_WEBGL, gl.TEXTURE_2D, textures.spectrum_disp, 0);
-	glmrt.drawBuffersWEBGL([
-		glmrt.COLOR_ATTACHMENT0_WEBGL,
-		glmrt.COLOR_ATTACHMENT1_WEBGL,
-		glmrt.COLOR_ATTACHMENT2_WEBGL
-	]);
+	fbos.spectrum_height = gl.createFramebuffer();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_height);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.spectrum_height, 0);
+
+	fbos.spectrum_slope = gl.createFramebuffer();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_slope);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.spectrum_slope, 0);
+
+	fbos.spectrum_disp = gl.createFramebuffer();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_disp);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.spectrum_disp, 0);
 
 	if(gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
 		alert('FATAL: rendering to float-point textures is not supported');
 
-	fbos.fft = [
-		fbos.spectrum,
+	fbos.fft_height = [
+		gl.createFramebuffer(),
 		gl.createFramebuffer()
 	];
 
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft[1]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT0_WEBGL, gl.TEXTURE_2D, textures.fft_height[1], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT1_WEBGL, gl.TEXTURE_2D, textures.fft_slope[1], 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT2_WEBGL, gl.TEXTURE_2D, textures.fft_disp[1], 0);
-	glmrt.drawBuffersWEBGL([
-		glmrt.COLOR_ATTACHMENT0_WEBGL,
-		glmrt.COLOR_ATTACHMENT1_WEBGL,
-		glmrt.COLOR_ATTACHMENT2_WEBGL
-	]);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[0]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_height[0], 0);
 
-	fbos.waves = gl.createFramebuffer();
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT0_WEBGL, gl.TEXTURE_2D, textures.waves0, 0);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT1_WEBGL, gl.TEXTURE_2D, textures.waves1, 0);
-	glmrt.drawBuffersWEBGL([
-		glmrt.COLOR_ATTACHMENT0_WEBGL,
-		glmrt.COLOR_ATTACHMENT1_WEBGL
-	]);
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[1]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_height[1], 0);
+
+	fbos.fft_slope = [
+		gl.createFramebuffer(),
+		gl.createFramebuffer()
+	];
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_slope[0]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_slope[0], 0);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_slope[1]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_slope[1], 0);
+
+	fbos.fft_disp = [
+		gl.createFramebuffer(),
+		gl.createFramebuffer()
+	];
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_disp[0]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_disp[0], 0);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_disp[1]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_disp[1], 0);
+
+	fbos.waves = [
+		gl.createFramebuffer(),
+		gl.createFramebuffer()
+	];
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves[0]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.waves0, 0);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves[1]);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.waves1, 0);
 
 	fbos.sky = [
 		gl.createFramebuffer(),
@@ -176,15 +195,15 @@ window.onload = function() {
 	];
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.sky[0]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT0_WEBGL, gl.TEXTURE_CUBE_MAP_POSITIVE_X, textures.sky, 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_X, textures.sky, 0);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.sky[1]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT0_WEBGL, gl.TEXTURE_CUBE_MAP_NEGATIVE_X, textures.sky, 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_NEGATIVE_X, textures.sky, 0);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.sky[2]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT0_WEBGL, gl.TEXTURE_CUBE_MAP_POSITIVE_Y, textures.sky, 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_Y, textures.sky, 0);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.sky[3]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT0_WEBGL, gl.TEXTURE_CUBE_MAP_POSITIVE_Z, textures.sky, 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_Z, textures.sky, 0);
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.sky[4]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, glmrt.COLOR_ATTACHMENT0_WEBGL, gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, textures.sky, 0);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, textures.sky, 0);
 
 	// Set up geometry
 	dome = {
@@ -535,9 +554,7 @@ function render(now) {
 
 	// Rendering to spectrum FBO
 
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum);
 	gl.viewport(0, 0, wavesdim, wavesdim);
-	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	// Wave spectrum at current time
 	gl.useProgram(programs.spectrum);
@@ -556,6 +573,16 @@ function render(now) {
 
 	gl.uniform1f(programs.spectrum.u_time, nowsec);
 
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_height);
+	gl.uniform1i(programs.spectrum.u_output, 0);
+	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_slope);
+	gl.uniform1i(programs.spectrum.u_output, 1);
+	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_disp);
+	gl.uniform1i(programs.spectrum.u_output, 2);
 	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 
 	// Rendering to wave FBO
@@ -591,14 +618,19 @@ function render(now) {
 	for(var i = 0; i < niter; i++) {
 		var texin = i&1;
 
-		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft[texin^1]);
-
-		gl.uniform1i(programs.fft_x.u_in[0], 0 + texin);
-		gl.uniform1i(programs.fft_x.u_in[1], 2 + texin);
-		gl.uniform1i(programs.fft_x.u_in[2], 4 + texin);
 		gl.uniform2f(programs.fft_x.u_dim, wavesdim, wavesdim);
 		gl.uniform1f(programs.fft_x.u_stage, i);
 
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[texin^1]);
+		gl.uniform1i(programs.fft_x.u_in, 0 + texin);
+		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_slope[texin^1]);
+		gl.uniform1i(programs.fft_x.u_in, 2 + texin);
+		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_disp[texin^1]);
+		gl.uniform1i(programs.fft_x.u_in, 4 + texin);
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 	}
 
@@ -612,14 +644,19 @@ function render(now) {
 	for(var i = 0; i < niter; i++) {
 		var texin = (niter + i)&1;
 
-		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft[texin^1]);
-
-		gl.uniform1i(programs.fft_y.u_in[0], 0 + texin);
-		gl.uniform1i(programs.fft_y.u_in[1], 2 + texin);
-		gl.uniform1i(programs.fft_y.u_in[2], 4 + texin);
 		gl.uniform2f(programs.fft_y.u_dim, wavesdim, wavesdim);
 		gl.uniform1f(programs.fft_y.u_stage, i);
 
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[texin^1]);
+		gl.uniform1i(programs.fft_y.u_in, 0 + texin);
+		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_slope[texin^1]);
+		gl.uniform1i(programs.fft_y.u_in, 2 + texin);
+		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_disp[texin^1]);
+		gl.uniform1i(programs.fft_y.u_in, 4 + texin);
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 	}
 
@@ -632,13 +669,17 @@ function render(now) {
 	gl.enableVertexAttribArray(programs.fft_final.a_position);
 	gl.vertexAttribPointer(programs.fft_final.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
 
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves);
-
 	gl.uniform1i(programs.fft_final.u_in[0], 0);
 	gl.uniform1i(programs.fft_final.u_in[1], 2);
 	gl.uniform1i(programs.fft_final.u_in[2], 4);
 	gl.uniform2f(programs.fft_final.u_dim, wavesdim, wavesdim);
 
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves[0]);
+	gl.uniform1i(programs.fft_final.u_output, 0);
+	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves[1]);
+	gl.uniform1i(programs.fft_final.u_output, 1);
 	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 
 	// Generate the wave mipmaps
