@@ -85,7 +85,7 @@ float simplex3(vec3 coord) {
 }
 
 vec3 sun_light() {
-	const vec3 suncolor = vec3(2024.04, 2550.38, 3005.75);
+	const vec3 color = vec3(2024.04, 2550.38, 3005.75);
 	const vec3 lamb = vec3(0.700, 0.550, 0.450);
 	const vec3 k_o = vec3(0.023, 0.085, 0.009);
 	const vec3 k_g = vec3(0, 0, 0);
@@ -100,7 +100,7 @@ vec3 sun_light() {
 	vec3 t_g = exp(-1.41*k_g*m*pow(1. + 118.93*k_g*m, vec3(-0.45)));
 	vec3 t_w = exp(-0.2385*k_w*2.*m*pow(1. + 20.07*k_w*2.*m, vec3(-0.45)));
 
-	return suncolor*t_r*t_a*t_o*t_g*t_w;
+	return color*t_r*t_a*t_o*t_g*t_w;
 }
 
 float sun_power() {
@@ -114,24 +114,24 @@ void main() {
 	vec4 sky = textureCube(u_sky, v_xyz);
 
 	vec3 sunlight = sun_light();
-	vec3 suncolor = sunlight/max(sunlight.r, max(sunlight.g, sunlight.b));
 	float sunpower = sun_power();
 
 	vec3 rgb = sky.rgb + sunpower*sunlight;
 
 	// Simplex noise clouds
-	vec2 cloudcoord = 0.5*v_xyz.xz/v_xyz.y + u_time*u_wind/2000.;
+	vec2 cloudcoord = 0.5*v_xyz.xz/v_xyz.y;
+	vec2 cloudoffset = u_time*u_wind/2000.;
 
 	float cloud = ((
-		  simplex3(vec3(vec2(1, 4) +  1.0*cloudcoord, 0.01*u_time))/1.0
-		+ simplex3(vec3(vec2(2, 3) +  2.0*cloudcoord, 0.02*u_time))/2.0
-		+ simplex3(vec3(vec2(3, 2) +  4.0*cloudcoord, 0.04*u_time))/4.0
-		+ simplex3(vec3(vec2(4, 1) + 16.0*cloudcoord, 0.04*u_time))/8.0
+		  simplex3(vec3(vec2(1, 4) +  1.0*cloudcoord + cloudoffset, 0.01*u_time))/1.0
+		+ simplex3(vec3(vec2(2, 3) +  2.0*cloudcoord + cloudoffset, 0.02*u_time))/2.0
+		+ simplex3(vec3(vec2(3, 2) +  4.0*cloudcoord + cloudoffset, 0.04*u_time))/4.0
+		+ simplex3(vec3(vec2(4, 1) + 16.0*cloudcoord + cloudoffset, 0.04*u_time))/8.0
 	)/(1./1. + 1./2. + 1./4. + 1./8.) + 1.)/2.;
 	cloud *= 1. - smoothstep(1., 40., length(cloudcoord));
 	cloud = max(0., 1. - exp(-5.*(cloud - 0.45)));
 
-	rgb = mix(rgb, sunlight/50.*dot(u_sundir, vec3(0, 1, 0)), cloud);
+	rgb = mix(rgb, sunlight/50.*max(0., dot(u_sundir, vec3(0, 1, 0))), cloud);
 
 	// HDR -> LDR
 	rgb /= 5.;

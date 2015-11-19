@@ -6,6 +6,8 @@ uniform samplerCube u_sky;
 uniform sampler2D u_waves[2];
 
 uniform vec3 u_cameraxyz;
+uniform float u_choppiness;
+uniform float u_foaminess;
 uniform float u_scale;
 
 uniform vec3 u_color;
@@ -14,6 +16,7 @@ uniform vec3 u_sundir;
 uniform float u_suntheta;
 uniform float u_turbidity;
 
+varying float v_jacobian;
 varying vec2 v_uv;
 varying vec3 v_xyz;
 
@@ -25,6 +28,28 @@ float sqr(float x) {
 
 vec3 sqr3(vec3 x) {
 	return x*x;
+}
+
+float rand2(vec2 seed) {
+	return fract(43758.5453*sin(dot(seed, vec2(12.9898, 78.233))));
+}
+
+float smooth_rand2(vec2 seed) {
+	vec2 b = floor(seed);
+	vec2 o = fract(seed);
+	return mix(
+		mix(
+			rand2(b),
+			rand2(b + vec2(1, 0)),
+			o.x
+		),
+		mix(
+			rand2(b + vec2(0, 1)),
+			rand2(b + vec2(1, 1)),
+			o.x
+		),
+		o.y
+	);
 }
 
 vec3 sun_light(vec3 dir) {
@@ -59,13 +84,20 @@ void main() {
 	r.y = abs(r.y); // Hack, since we aren't doing inter-wave reflections
 
 	vec3 sky = max(vec3(0), textureCube(u_sky, r).rgb);
-	vec3 sun = sun_power(r)*sun_light(r);
+
+	vec3 sunlight = sun_light(r);
+	vec3 sun = sun_power(r)*sunlight;
 
 	const float n1 = 1., n2 = 1.333;
 	float r0 = sqr((n1 - n2)/(n1 + n2));
 	float fresnel = r0 + (1. - r0)*pow(1. - max(0., dot(normal, v)), 5.);
 
 	vec3 rgb = mix(u_color, sky + sun, fresnel);
+
+	// Cresting foam
+	rgb += sunlight/100.*max(0., dot(u_sundir, vec3(0, 1, 0)))
+		*smoothstep(1. - u_foaminess, 1., 1. - v_jacobian)
+		*(smooth_rand2(400.*v_uv) + smooth_rand2(200.*v_uv))/2.;
 
 	rgb /= 5.;
 	float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));

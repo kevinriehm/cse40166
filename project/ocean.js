@@ -22,6 +22,7 @@ var cells;
 // Configuration
 var choppiness;
 var daytime;
+var foaminess;
 var horizon;
 var lodbias;
 var skyres;
@@ -37,6 +38,7 @@ var playing;
 
 window.onload = function() {
 	choppiness = 1; // Scaling factor for displacement vector
+	foaminess = 0.3; // Cresting texture threshold
 	daytime = 0.25; // Time of day (for Sun position)
 	horizon = 1000; // Maximum distance of water cells
 	lodbias = 1; // Limit factor of cell division
@@ -271,6 +273,12 @@ window.onload = function() {
 	};
 	document.getElementById('wavesscale').dispatchEvent(new Event('input'));
 
+	document.getElementById('foaminess').oninput = function() {
+		foaminess = Number(this.value);
+		document.getElementById('foaminessdisplay').textContent = this.value;
+	};
+	document.getElementById('foaminess').dispatchEvent(new Event('input'));
+
 	document.getElementById('choppiness').oninput = function() {
 		choppiness = Number(this.value);
 		document.getElementById('choppinessdisplay').textContent = this.value;
@@ -416,9 +424,9 @@ function gen_cells() {
 		var lod2 = Math.atan(x2*z1/Math.sqrt(x2*x2 + y*y + z1*z1));
 		var lod3 = Math.atan(x2*z2/Math.sqrt(x2*x2 + y*y + z2*z2));
 
-		var lod = lod0 - lod1 - lod2 + lod3;
-cell.lod = lod;
-		if(lod < lodbias) {
+		cell.lod = lod0 - lod1 - lod2 + lod3;
+
+		if(cell.lod < lodbias) {
 			cell.mv = mat4();
 			cell.mv = mult(scalem(cell.w, 1, cell.h), cell.mv);
 			cell.mv = mult(translate(cell.x, 0, cell.z), cell.mv);
@@ -633,6 +641,13 @@ function render(now) {
 
 	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 
+	// Generate the wave mipmaps
+	gl.bindTexture(gl.TEXTURE_2D, textures.waves0);
+	gl.generateMipmap(gl.TEXTURE_2D);
+
+	gl.bindTexture(gl.TEXTURE_2D, textures.waves1);
+	gl.generateMipmap(gl.TEXTURE_2D);
+
 	// Rendering to sky cubemap
 
 	gl.viewport(0, 0, skyres, skyres);
@@ -659,7 +674,7 @@ function render(now) {
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.viewport(0, 0, canvas.width, canvas.height);
-	gl.clear(gl.COLOR_BUFFER_BIT);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
 	// Sky dome
 	gl.useProgram(programs.dome);
@@ -712,11 +727,9 @@ function render(now) {
 
 	gl.activeTexture(gl.TEXTURE0);
 	gl.bindTexture(gl.TEXTURE_2D, textures.waves0);
-	gl.generateMipmap(gl.TEXTURE_2D);
 
 	gl.activeTexture(gl.TEXTURE1);
 	gl.bindTexture(gl.TEXTURE_2D, textures.waves1);
-	gl.generateMipmap(gl.TEXTURE_2D);
 
 	gl.activeTexture(gl.TEXTURE2);
 	gl.bindTexture(gl.TEXTURE_CUBE_MAP, textures.sky);
@@ -729,6 +742,7 @@ function render(now) {
 	gl.uniform3fv(programs.water.u_cameraxyz, camera.xyz);
 	gl.uniform3f(programs.water.u_color, 0, 0.2, 0.3);
 	gl.uniform1f(programs.water.u_choppiness, choppiness);
+	gl.uniform1f(programs.water.u_foaminess, foaminess);
 	gl.uniform1f(programs.water.u_scale, wavesscale);
 	gl.uniform3fv(programs.water.u_sundir, suninfo.dir);
 	gl.uniform1f(programs.water.u_suntheta, suninfo.theta);
