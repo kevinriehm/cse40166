@@ -120,7 +120,7 @@ void main() {
 
 	// Simplex noise clouds
 	vec2 cloudcoord = 0.5*v_xyz.xz/v_xyz.y;
-	vec2 cloudoffset = u_time*u_wind/2000.;
+	vec2 cloudoffset = -u_time*u_wind/2000.;
 
 	float cloud = ((
 		  simplex3(vec3(vec2(1, 4) +  1.0*cloudcoord + cloudoffset, 0.01*u_time))/1.0
