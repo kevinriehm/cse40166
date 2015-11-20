@@ -10,6 +10,10 @@ uniform float u_time;
 uniform float u_turbidity;
 uniform vec2 u_wind;
 
+uniform float u_cloudiness;
+
+uniform float u_hdrscale;
+
 varying vec3 v_xyz;
 
 const float pi = 3.14159265;
@@ -129,12 +133,12 @@ void main() {
 		+ simplex3(vec3(vec2(4, 1) + 16.0*cloudcoord + cloudoffset, 0.04*u_time))/8.0
 	)/(1./1. + 1./2. + 1./4. + 1./8.) + 1.)/2.;
 	cloud *= 1. - smoothstep(1., 40., length(cloudcoord));
-	cloud = max(0., 1. - exp(-5.*(cloud - 0.45)));
+	cloud = max(0., 1. - exp(-5.*(cloud + u_cloudiness - 1.)));
 
 	rgb = mix(rgb, sunlight/50.*max(0., dot(u_sundir, vec3(0, 1, 0))), cloud);
 
 	// HDR -> LDR
-	rgb /= 5.;
+	rgb *= u_hdrscale;
 	float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
 	rgb /= 1. + lum;
 

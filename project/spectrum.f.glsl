@@ -81,10 +81,9 @@ float phillips(vec2 k) {
 	if(lk < 0.001 || lw < 0.001)
 		return 0.;
 
-	return u_amplitude/sqr(sqr(lk))
-		*exp(-1./sqr(lk*L))
-		*sqr(dot(k/lk, u_wind/lw))
-		*exp(-sqr(lk*L*small));
+	return u_amplitude
+		*exp(-1./sqr(lk*L) - sqr(lk*L*small))
+		*sqr(dot(k/lk, u_wind/lw)/sqr(lk));
 }
 
 vec2 h0(vec2 k) {
@@ -98,7 +97,11 @@ vec2 h(vec2 k, float t) {
 }
 
 void main() {
-	vec2 coord = vec2(reverse_x(int(gl_FragCoord.x)), reverse_y(int(gl_FragCoord.y)));
+	vec2 coord = vec2(
+		reverse_x(int(gl_FragCoord.x)),
+		reverse_y(int(gl_FragCoord.y))
+	);
+
 	vec2 k = 2.*pi*(coord - u_dim/2.)/u_scale;
 	float lk = length(k);
 
@@ -108,8 +111,8 @@ void main() {
 	vec2 dx = cmul(v, vec2(0, lk < 0.001 ? 0. : k.x/lk));
 	vec2 dy = cmul(v, vec2(0, lk < 0.001 ? 0. : k.y/lk));
 
-	if(u_output == 0) gl_FragColor = vec4(v, 0, 0); // Height
-	if(u_output == 1) gl_FragColor = vec4(sx, sy); // Slope
-	if(u_output == 2) gl_FragColor = vec4(dx, dy); // Displacement
+	     if(u_output == 0) gl_FragColor = vec4(v, 0, 0); // Height
+	else if(u_output == 1) gl_FragColor = vec4(sx, sy);  // Slope
+	else if(u_output == 2) gl_FragColor = vec4(dx, dy);  // Displacement
 }
 

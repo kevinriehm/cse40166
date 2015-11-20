@@ -14,7 +14,7 @@ float sqr(float x) {
 	return x*x;
 }
 
-// Perez et al.'s skylight distribution model
+// Perez's skylight distribution model
 float perez(float theta, float gamma, float A, float B, float C, float D, float E) {
 	return (1. + A*exp(B/cos(theta)))*(1. + C*exp(D*gamma) + E*sqr(cos(gamma)));
 }

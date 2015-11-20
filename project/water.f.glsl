@@ -16,6 +16,8 @@ uniform vec3 u_sundir;
 uniform float u_suntheta;
 uniform float u_turbidity;
 
+uniform float u_hdrscale;
+
 varying float v_jacobian;
 varying vec2 v_uv;
 varying vec3 v_xyz;
@@ -23,10 +25,6 @@ varying vec3 v_xyz;
 const float pi = 3.14159265;
 
 float sqr(float x) {
-	return x*x;
-}
-
-vec3 sqr3(vec3 x) {
 	return x*x;
 }
 
@@ -62,13 +60,15 @@ vec3 sun_light(vec3 dir) {
 	float b = 0.04608*u_turbidity - 0.04586;
 	float m = 1./(cos(0.6*u_suntheta) + 0.15*pow(93.885 - degrees(0.6*u_suntheta), -1.253));
 
-	vec3 t_r = exp(-0.008735*pow(lamb, vec3(-4.08*m)));
-	vec3 t_a = exp(-b*pow(lamb, vec3(-1.3*m)));
-	vec3 t_o = exp(-k_o*0.35*m);
-	vec3 t_g = exp(-1.41*k_g*m*pow(1. + 118.93*k_g*m, vec3(-0.45)));
-	vec3 t_w = exp(-0.2385*k_w*2.*m*pow(1. + 20.07*k_w*2.*m, vec3(-0.45)));
+	vec3 t = exp(
+		- 0.008735*pow(lamb, vec3(-4.08*m))
+		- b*pow(lamb, vec3(-1.3*m))
+		- k_o*0.35*m
+		- 1.41*k_g*m*pow(1. + 118.93*k_g*m, vec3(-0.45))
+		- 0.2385*k_w*2.*m*pow(1. + 20.07*k_w*2.*m, vec3(-0.45))
+	);
 
-	return suncolor*t_r*t_a*t_o*t_g*t_w;
+	return t*suncolor;
 }
 
 float sun_power(vec3 dir) {
@@ -100,7 +100,7 @@ void main() {
 	vec3 rgb = mix(u_color, sky + (foaminess > 0. ? vec3(0) : sun), fresnel)
 		+ foam*foaminess*(1. + fresnel);
 
-	rgb /= 5.;
+	rgb *= u_hdrscale;
 	float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
 	rgb /= 1. + lum;
 

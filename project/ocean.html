@@ -25,6 +25,11 @@
 
 		<br>
 
+		<input id="wavesamplitude" type="range" min="0" max="10" step="0.1" value="1"/>
+		<label for="wavesamplitude">Wave amplitude: <span id="wavesamplitudedisplay"></span></label>
+
+		<br>
+
 		<input id="wavesscale" type="range" min="1" max="100" step="1" value="40"/>
 		<label for="wavesscale">Wave scale: <span id="wavesscaledisplay"></span></label>
 
@@ -55,6 +60,11 @@
 
 		<br>
 
+		<input id="cloudiness" type="range" min="0" max="1" step="0.05" value="0.55"/>
+		<label for="cloudiness">Cloudiness: <span id="cloudinessdisplay"></span></label>
+
+		<br>
+
 		<input id="anisotropy" type="range" min="0" max="0" step="1" value="0"/>
 		<label for="anisotropy">Anisotropic filtering: <span id="anisotropydisplay"></span></label>
 
@@ -62,6 +72,17 @@
 
 		<input id="wireframe" type="checkbox"/>
 		<label for="wireframe">Wireframe</label>
+
+		<br>
+
+		<label for="wavesdim">Wave resolution:</label>
+		<select id="wavesdim">
+			<option label="512x512" value="512"/>
+			<option label="256x256" value="256"/>
+			<option label="128x128" value="128" selected/>
+			<option label="64x64" value="64"/>
+			<option label="32x32" value="32"/>
+		</select>
 	</body>
 </html>
 

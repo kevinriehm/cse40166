@@ -5,8 +5,8 @@ precision highp float;
 uniform sampler2D u_in;
 
 uniform vec2 u_dim;
-
 uniform float u_stage;
+uniform bool u_horizontal;
 
 const float pi = 3.14159265;
 
@@ -21,12 +21,13 @@ vec2 cmul(vec2 a, vec2 b) {
 void main() {
 	float bit = exp2(u_stage);
 	float bit2 = 2.*bit;
-	float y_e = floor(gl_FragCoord.y/bit2)*bit2 + mod(gl_FragCoord.y, bit);
-	float y_o = y_e + bit;
+	float xy = u_horizontal ? gl_FragCoord.x : gl_FragCoord.y;
+	float xy_e = floor(xy/bit2)*bit2 + mod(xy, bit);
+	float xy_o = xy_e + bit;
 
-	vec2 c_e = vec2(gl_FragCoord.x, y_e)/u_dim;
-	vec2 c_o = vec2(gl_FragCoord.x, y_o)/u_dim;
-	vec2 uroot = cexp(2.*pi*gl_FragCoord.y/bit2);
+	vec2 c_e = (u_horizontal ? vec2(xy_e, gl_FragCoord.y) : vec2(gl_FragCoord.x, xy_e))/u_dim;
+	vec2 c_o = (u_horizontal ? vec2(xy_o, gl_FragCoord.y) : vec2(gl_FragCoord.x, xy_o))/u_dim;
+	vec2 uroot = cexp(2.*pi*xy/bit2);
 
 	vec4 raw_e = texture2D(u_in, c_e);
 	vec4 raw_o = texture2D(u_in, c_o);

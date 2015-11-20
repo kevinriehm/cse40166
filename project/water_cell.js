@@ -1,11 +1,11 @@
 // Generates a list of water cells, based on the camera's current position
-function gen_cells(cam) {
+function gen_cells() {
 	var cells = (function split_cell(cell) {
-		var x1 = cell.x - cam.xyz[0];
-		var x2 = cell.x - cam.xyz[0] + cell.w;
-		var y = Math.max(1, Math.abs(cam.xyz[1]));
-		var z1 = cell.z - cam.xyz[2];
-		var z2 = cell.z - cam.xyz[2] + cell.h;
+		var x1 = cell.x - camera.xyz[0];
+		var x2 = cell.x - camera.xyz[0] + cell.w;
+		var y = Math.max(1, Math.abs(camera.xyz[1]));
+		var z1 = cell.z - camera.xyz[2];
+		var z2 = cell.z - camera.xyz[2] + cell.h;
 
 		var lod0 = Math.atan(x1*z1/Math.sqrt(x1*x1 + y*y + z1*z1));
 		var lod1 = Math.atan(x1*z2/Math.sqrt(x1*x1 + y*y + z2*z2));
@@ -77,8 +77,8 @@ function gen_cells(cam) {
 		return [].concat(split_cell(nw), split_cell(ne), split_cell(sw), split_cell(se));
 	})({
 		// One corner
-		x: cam.xyz[0] - horizon,
-		z: cam.xyz[2] - horizon,
+		x: camera.xyz[0] - horizon,
+		z: camera.xyz[2] - horizon,
 
 		// Dimensions
 		w: 2*horizon,
