@@ -35,6 +35,10 @@ var wireframe;
 
 var playing;
 
+var prevtime;
+var frames = 0;
+
+
 window.onload = function() {
 	choppiness = 1; // Scaling factor for displacement vector
 	foaminess = 0.3; // Cresting texture threshold
@@ -64,8 +68,8 @@ window.onload = function() {
 	glhalf = gl.getExtension('OES_texture_half_float');
 	glhalflinear = gl.getExtension('OES_texture_half_float_linear');
 
-	if(gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) < 1)
-		alert('FATAL: MAX_VERTEX_TEXTURE_IMAGE_UNITS must be at least 1');
+	if(gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) < 2)
+		alert('FATAL: MAX_VERTEX_TEXTURE_IMAGE_UNITS must be at least 2');
 
 	gl.clearColor(0, 0, 0, 1);
 
@@ -127,83 +131,37 @@ window.onload = function() {
 
 	fbos = {};
 
-	fbos.spectrum_height = gl.createFramebuffer();
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_height);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.spectrum_height, 0);
-
-	fbos.spectrum_slope = gl.createFramebuffer();
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_slope);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.spectrum_slope, 0);
-
-	fbos.spectrum_disp = gl.createFramebuffer();
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_disp);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.spectrum_disp, 0);
-
-	if(gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
-		alert('FATAL: rendering to float-point textures is not supported');
+	fbos.spectrum_height = gen_fbo(gl.TEXTURE_2D, textures.spectrum_height);
+	fbos.spectrum_slope = gen_fbo(gl.TEXTURE_2D, textures.spectrum_slope);
+	fbos.spectrum_disp = gen_fbo(gl.TEXTURE_2D, textures.spectrum_disp);
 
 	fbos.fft_height = [
-		gl.createFramebuffer(),
-		gl.createFramebuffer()
+		gen_fbo(gl.TEXTURE_2D, textures.fft_height[0]),
+		gen_fbo(gl.TEXTURE_2D, textures.fft_height[1])
 	];
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[0]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_height[0], 0);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[1]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_height[1], 0);
 
 	fbos.fft_slope = [
-		gl.createFramebuffer(),
-		gl.createFramebuffer()
+		gen_fbo(gl.TEXTURE_2D, textures.fft_slope[0]),
+		gen_fbo(gl.TEXTURE_2D, textures.fft_slope[1])
 	];
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_slope[0]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_slope[0], 0);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_slope[1]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_slope[1], 0);
 
 	fbos.fft_disp = [
-		gl.createFramebuffer(),
-		gl.createFramebuffer()
+		gen_fbo(gl.TEXTURE_2D, textures.fft_disp[0]),
+		gen_fbo(gl.TEXTURE_2D, textures.fft_disp[1])
 	];
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_disp[0]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_disp[0], 0);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_disp[1]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.fft_disp[1], 0);
 
 	fbos.waves = [
-		gl.createFramebuffer(),
-		gl.createFramebuffer()
+		gen_fbo(gl.TEXTURE_2D, textures.waves0),
+		gen_fbo(gl.TEXTURE_2D, textures.waves1)
 	];
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves[0]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.waves0, 0);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves[1]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures.waves1, 0);
 
 	fbos.sky = [
-		gl.createFramebuffer(),
-		gl.createFramebuffer(),
-		gl.createFramebuffer(),
-		gl.createFramebuffer(),
-		gl.createFramebuffer()
+		gen_fbo(gl.TEXTURE_CUBE_MAP_POSITIVE_X, textures.sky),
+		gen_fbo(gl.TEXTURE_CUBE_MAP_NEGATIVE_X, textures.sky),
+		gen_fbo(gl.TEXTURE_CUBE_MAP_POSITIVE_Y, textures.sky),
+		gen_fbo(gl.TEXTURE_CUBE_MAP_POSITIVE_Z, textures.sky),
+		gen_fbo(gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, textures.sky)
 	];
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.sky[0]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_X, textures.sky, 0);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.sky[1]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_NEGATIVE_X, textures.sky, 0);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.sky[2]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_Y, textures.sky, 0);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.sky[3]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_Z, textures.sky, 0);
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.sky[4]);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, textures.sky, 0);
 
 	// Set up geometry
 	dome = {
@@ -264,7 +222,7 @@ window.onload = function() {
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, water.indices.buffer);
 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(water.indices), gl.STATIC_DRAW);
 
-	cells = gen_cells();
+	cells = gen_cells(camera);
 
 	// Hook up the controls
 	document.getElementById('play').onclick = function() {
@@ -364,9 +322,9 @@ window.onload = function() {
 	window.requestAnimationFrame(render);
 };
 
-// Compile shaders and perform introspection on the attributes and uniforms
+// Compile shaders and perform introspection to automatically list the attributes and uniforms
 function build_program(vshader, fshader) {
-	var array = /(.*)\[(\d*)\]/;
+	var array = /(.*)\[\d*\]/;
 
 	var program = initShaders(gl, vshader, fshader);
 
@@ -397,10 +355,10 @@ function build_program(vshader, fshader) {
 
 // Calculates the position of the Sun in the sky, based on the time of day
 function calc_sun_position() {
-	var latitude = 0;
+	var latitude = 0; // Location on Earth
 	var longitude = 0;
-	var calendarday = 1;
-	var stdmeridian = 0;
+	var calendarday = 1; // Day of the year, 1-365
+	var stdmeridian = 0; // Standard meridian of the time zone
 
 	var declination = 0.4093*Math.sin(2*Math.PI,(calendarday - 81)/368);
 	var suntime = daytime + 0.170*Math.sin(4*Math.PI*(calendarday - 80)/373)
@@ -418,6 +376,20 @@ function calc_sun_position() {
 	return {dir: dir, theta: theta, phi: phi};
 }
 
+// Creates a framebuffer and attaches a texture to it
+function gen_fbo(c0type, c0tex) {
+	var fbo = gl.createFramebuffer();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, c0type, c0tex, 0);
+
+	if(gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+		alert('FATAL: incomplete framebuffer');
+		console.trace();
+	}
+
+	return fbo;
+}
+
 // Creates a texture suitable for an intermediary step in the FFT process
 function gen_wave_texture() {
 	var tex = gl.createTexture();
@@ -426,137 +398,12 @@ function gen_wave_texture() {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 	return tex;
-
 }
 
-// Generates a list of water cells, based on the camera's current position
-function gen_cells() {
-	var cells = (function split_cell(cell) {
-		var x1 = cell.x - camera.xyz[0];
-		var x2 = cell.x - camera.xyz[0] + cell.w;
-		var y = Math.max(1, Math.abs(camera.xyz[1]));
-		var z1 = cell.z - camera.xyz[2];
-		var z2 = cell.z - camera.xyz[2] + cell.h;
-
-		var lod0 = Math.atan(x1*z1/Math.sqrt(x1*x1 + y*y + z1*z1));
-		var lod1 = Math.atan(x1*z2/Math.sqrt(x1*x1 + y*y + z2*z2));
-		var lod2 = Math.atan(x2*z1/Math.sqrt(x2*x2 + y*y + z1*z1));
-		var lod3 = Math.atan(x2*z2/Math.sqrt(x2*x2 + y*y + z2*z2));
-
-		cell.lod = lod0 - lod1 - lod2 + lod3;
-
-		if(cell.lod < lodbias) {
-			cell.mv = mat4();
-			cell.mv = mult(scalem(cell.w, 1, cell.h), cell.mv);
-			cell.mv = mult(translate(cell.x, 0, cell.z), cell.mv);
-			return [cell];
-		}
-
-		var w = cell.w/2;
-		var h = cell.h/2;
-
-		var nw = {x: cell.x,     z: cell.z + h, w: w, h: h, depth: cell.depth + 1};
-		var ne = {x: cell.x + w, z: cell.z + h, w: w, h: h, depth: cell.depth + 1};
-		var sw = {x: cell.x,     z: cell.z,     w: w, h: h, depth: cell.depth + 1};
-		var se = {x: cell.x + w, z: cell.z,     w: w, h: h, depth: cell.depth + 1};
-
-		nw.edges = {n: cell.edges.n, s: [sw], w: cell.edges.w, e: [ne]};
-		ne.edges = {n: cell.edges.n, s: [se], w: [nw], e: cell.edges.e};
-		sw.edges = {n: [nw], s: cell.edges.s, w: cell.edges.w, e: [se]};
-		se.edges = {n: [ne], s: cell.edges.s, w: [sw], e: cell.edges.e};
-
-		cell.edges.n.forEach(function(neighbor) {
-			neighbor.edges.s = neighbor.edges.s.filter(function(x) { return x !== cell; });
-			[nw, ne, sw, se].forEach(function(subcell) {
-				if(neighbor.x <= subcell.x && subcell.x < neighbor.x + neighbor.w
-					|| neighbor.x < subcell.x + subcell.w
-						&& subcell.x + subcell.w <= neighbor.x + neighbor.w)
-					neighbor.edges.s.push(subcell);
-			});
-		});
-
-		cell.edges.s.forEach(function(neighbor) {
-			neighbor.edges.n = neighbor.edges.n.filter(function(x) { return x !== cell; });
-			[nw, ne, sw, se].forEach(function(subcell) {
-				if(neighbor.x <= subcell.x && subcell.x < neighbor.x + neighbor.w
-					|| neighbor.x < subcell.x + subcell.w
-						&& subcell.x + subcell.w <= neighbor.x + neighbor.w)
-					neighbor.edges.n.push(subcell);
-			});
-		});
-
-		cell.edges.w.forEach(function(neighbor) {
-			neighbor.edges.e = neighbor.edges.e.filter(function(x) { return x !== cell; });
-			[nw, ne, sw, se].forEach(function(subcell) {
-				if(neighbor.z <= subcell.z && subcell.z < neighbor.z + neighbor.h
-					|| neighbor.z < subcell.z + subcell.h
-						&& subcell.z + subcell.h <= neighbor.z + neighbor.h)
-					neighbor.edges.e.push(subcell);
-			});
-		});
-
-		cell.edges.e.forEach(function(neighbor) {
-			neighbor.edges.w = neighbor.edges.w.filter(function(x) { return x !== cell; });
-			[nw, ne, sw, se].forEach(function(subcell) {
-				if(neighbor.z <= subcell.z && subcell.z < neighbor.z + neighbor.h
-					|| neighbor.z < subcell.z + subcell.h
-						&& subcell.z + subcell.h <= neighbor.z + neighbor.h)
-					neighbor.edges.w.push(subcell);
-			});
-		});
-
-		return [].concat(split_cell(nw), split_cell(ne), split_cell(sw), split_cell(se));
-	})({
-		// One corner
-		x: camera.xyz[0] - horizon,
-		z: camera.xyz[2] - horizon,
-
-		// Dimensions
-		w: 2*horizon,
-		h: 2*horizon,
-
-		// Neighbors
-		edges: {n: [], s: [], w: [], e: []},
-
-		depth: 0
-	});
-
-	cells.forEach(function(cell) {
-		cell.seams = {
-			n: cell.edges.n.length === 1 ? cell.depth - cell.edges.n[0].depth : 0,
-			s: cell.edges.s.length === 1 ? cell.depth - cell.edges.s[0].depth : 0,
-			w: cell.edges.w.length === 1 ? cell.depth - cell.edges.w[0].depth : 0,
-			e: cell.edges.e.length === 1 ? cell.depth - cell.edges.e[0].depth : 0
-		};
-	});
-
-	return cells;
-}
-
-var prev;
-var frames = 0;
-function render(now) {
-	var cam, mv;
-
-	var nowsec = now/1000;
-
-	// FPS counter
-	if(!prev) prev = now;
-	if(now - prev >= 1000) {
-		prev += Math.floor((now - prev)/1000)*1000;
-		console.log(frames);
-		frames = 0;
-	}
-	frames++;
-
-	// Update Sun
-	var suninfo = calc_sun_position();
-
-	// Rendering to spectrum FBO
-
+// Update the wave spectrum texture
+function render_spectrum(time) {
 	gl.viewport(0, 0, wavesdim, wavesdim);
 
-	// Wave spectrum at current time
 	gl.useProgram(programs.spectrum);
 
 	gl.disable(gl.DEPTH_TEST);
@@ -571,7 +418,7 @@ function render(now) {
 	gl.uniform1f(programs.spectrum.u_scale, wavesscale);
 	gl.uniform2f(programs.spectrum.u_seed, 8, 8);
 
-	gl.uniform1f(programs.spectrum.u_time, nowsec);
+	gl.uniform1f(programs.spectrum.u_time, time);
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_height);
 	gl.uniform1i(programs.spectrum.u_output, 0);
@@ -584,7 +431,10 @@ function render(now) {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_disp);
 	gl.uniform1i(programs.spectrum.u_output, 2);
 	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+}
 
+// Update the wave height, slope, and displacement maps
+function render_wave_maps() {
 	// Rendering to wave FBO
 
 	gl.viewport(0, 0, wavesdim, wavesdim);
@@ -688,7 +538,10 @@ function render(now) {
 
 	gl.bindTexture(gl.TEXTURE_2D, textures.waves1);
 	gl.generateMipmap(gl.TEXTURE_2D);
+}
 
+// Update the atmosphere cube map (not including the Sun or the clouds for resolution reasons)
+function render_sky_map(suninfo) {
 	// Rendering to sky cubemap
 
 	gl.viewport(0, 0, skyres, skyres);
@@ -710,9 +563,10 @@ function render(now) {
 		gl.uniform1i(programs.sky.u_face, i);
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 	}
+}
 
-	// Rendering to canvas
-
+// Actually output everything (atmosphere, waves, Sun, and clouds) to the canvas
+function render_scene(suninfo, time) {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.viewport(0, 0, canvas.width, canvas.height);
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -722,7 +576,7 @@ function render(now) {
 
 	gl.disable(gl.DEPTH_TEST);
 
-	camrot = mat4();
+	var camrot = mat4();
 	camrot = mult(rotateZ(-camera.rot[2]), camrot);
 	camrot = mult(rotateY(-camera.rot[1]), camrot);
 	camrot = mult(rotateX(-camera.rot[0]), camrot);
@@ -742,7 +596,7 @@ function render(now) {
 	gl.uniformMatrix4fv(programs.dome.u_camera, gl.FALSE, flatten(camrot));
 	gl.uniform3fv(programs.dome.u_sundir, suninfo.dir);
 	gl.uniform1f(programs.dome.u_suntheta, suninfo.theta);
-	gl.uniform1f(programs.dome.u_time, nowsec);
+	gl.uniform1f(programs.dome.u_time, time);
 	gl.uniform1f(programs.dome.u_turbidity, turbidity);
 	gl.uniform2fv(programs.dome.u_wind, wind);
 
@@ -753,7 +607,7 @@ function render(now) {
 
 	gl.enable(gl.DEPTH_TEST);
 
-	cam = mat4();
+	var cam = mat4();
 	cam = mult(translate(-camera.xyz[0], -camera.xyz[1], -camera.xyz[2]), cam);
 	cam = mult(rotateZ(-camera.rot[2]), cam);
 	cam = mult(rotateY(-camera.rot[1]), cam);
@@ -802,6 +656,32 @@ function render(now) {
 		gl.drawElements(wireframe ? gl.LINE_STRIP : gl.TRIANGLE_STRIP,
 			water.indices.length, gl.UNSIGNED_SHORT, 0);
 	});
+}
+
+function render(now) {
+	var nowsec = now/1000;
+
+	// FPS counter
+	if(!prevtime)
+		prevtime = now;
+
+	if(now - prevtime >= 1000) {
+		prevtime += Math.floor((now - prevtime)/1000)*1000;
+		console.log(frames);
+		frames = 0;
+	}
+	frames++;
+
+	// Update Sun
+	var suninfo = calc_sun_position();
+
+	render_spectrum(nowsec);
+
+	render_wave_maps();
+
+	render_sky_map(suninfo);
+
+	render_scene(suninfo, nowsec);
 
 	if(playing)
 		window.requestAnimationFrame(render);
