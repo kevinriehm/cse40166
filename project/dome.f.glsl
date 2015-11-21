@@ -22,27 +22,20 @@ float sqr(float x) {
 	return x*x;
 }
 
-float rand3(vec3 seed) {
-	return fract(43758.5453*sin(dot(seed, vec3(12.9898, 78.233, 89.3414))));
+float rand4(vec4 seed) {
+	return fract(43758.5453*sin(dot(seed, vec4(12.9898, 78.233, 89.3414, 97.234123))));
 }
 
 vec3 simplex3_grad(vec3 coord) {
 	const float period = 256.;
 
-	int i = int(12.*rand3(mod(coord, period)));
+	coord = mod(coord, period);
 
-	if(i ==  0) return vec3( 0, -1, -1);
-	if(i ==  1) return vec3( 0, -1,  1);
-	if(i ==  2) return vec3( 0,  1, -1);
-	if(i ==  3) return vec3( 0,  1,  1);
-	if(i ==  4) return vec3(-1,  0, -1);
-	if(i ==  5) return vec3(-1,  0,  1);
-	if(i ==  6) return vec3(-1, -1,  0);
-	if(i ==  7) return vec3(-1,  1,  0);
-	if(i ==  8) return vec3( 1,  0, -1);
-	if(i ==  9) return vec3( 1,  0,  1);
-	if(i == 10) return vec3( 1, -1,  0);
-	            return vec3( 1,  1,  0);
+	return vec3(
+		floor(3.*rand4(vec4(coord, 1.))) - 1.,
+		floor(3.*rand4(vec4(coord, 2.))) - 1.,
+		floor(3.*rand4(vec4(coord, 3.))) - 1.
+	);
 }
 
 float simplex3(vec3 coord) {
@@ -114,15 +107,17 @@ float sun_power() {
 // Simplex noise clouds
 float cloud_cover() {
 	vec2 cloudcoord = 0.5*v_xyz.xz/v_xyz.y;
-	vec2 cloudoffset = -u_time*u_wind/2000.;
+	float clouddist = length(cloudcoord);
 
-	float cloud = ((
-		  simplex3(vec3(vec2(1, 4) +  1.0*cloudcoord + cloudoffset, 0.01*u_time))/1.0
-		+ simplex3(vec3(vec2(2, 3) +  2.0*cloudcoord + cloudoffset, 0.02*u_time))/2.0
-		+ simplex3(vec3(vec2(3, 2) +  4.0*cloudcoord + cloudoffset, 0.04*u_time))/4.0
-		+ simplex3(vec3(vec2(4, 1) + 16.0*cloudcoord + cloudoffset, 0.04*u_time))/8.0
-	)/(1./1. + 1./2. + 1./4. + 1./8.) + 1.)/2.;
-	cloud *= 1. - smoothstep(1., 40., length(cloudcoord));
+	cloudcoord -= u_time*u_wind/2000.;
+
+	float cloud = 0.5*(
+		  simplex3(vec3( 1.*cloudcoord, 0.01*u_time))
+		+ simplex3(vec3( 2.*cloudcoord, 0.02*u_time))*0.5
+		+ simplex3(vec3( 4.*cloudcoord, 0.04*u_time))*0.25
+		+ simplex3(vec3(16.*cloudcoord, 0.04*u_time))*0.125
+	)/(1. + 0.5 + 0.25 + 0.125) + 0.5;
+	cloud *= 1. - smoothstep(1., 40., clouddist);
 	cloud = max(0., 1. - exp(-5.*(cloud + u_cloudiness - 1.)));
 
 	return cloud;

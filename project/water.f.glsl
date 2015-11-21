@@ -32,27 +32,20 @@ float sqr(float x) {
 	return x*x;
 }
 
-float rand3(vec3 seed) {
-	return fract(43758.5453*sin(dot(seed, vec3(12.9898, 78.233, 89.3414))));
+float rand4(vec4 seed) {
+	return fract(43758.5453*sin(dot(seed, vec4(12.9898, 78.233, 89.3414, 97.234123))));
 }
 
 vec3 simplex3_grad(vec3 coord) {
 	const float period = 256.;
 
-	int i = int(12.*rand3(mod(coord, period)));
+	coord = mod(coord, period);
 
-	if(i ==  0) return vec3( 0, -1, -1);
-	if(i ==  1) return vec3( 0, -1,  1);
-	if(i ==  2) return vec3( 0,  1, -1);
-	if(i ==  3) return vec3( 0,  1,  1);
-	if(i ==  4) return vec3(-1,  0, -1);
-	if(i ==  5) return vec3(-1,  0,  1);
-	if(i ==  6) return vec3(-1, -1,  0);
-	if(i ==  7) return vec3(-1,  1,  0);
-	if(i ==  8) return vec3( 1,  0, -1);
-	if(i ==  9) return vec3( 1,  0,  1);
-	if(i == 10) return vec3( 1, -1,  0);
-	            return vec3( 1,  1,  0);
+	return vec3(
+		floor(3.*rand4(vec4(coord, 1.))) - 1.,
+		floor(3.*rand4(vec4(coord, 2.))) - 1.,
+		floor(3.*rand4(vec4(coord, 3.))) - 1.
+	);
 }
 
 float simplex3(vec3 coord) {
@@ -126,15 +119,17 @@ float sun_power(vec3 dir) {
 // Simplex noise clouds
 float cloud_cover(vec3 r) {
 	vec2 cloudcoord = 0.5*r.xz/r.y;
-	vec2 cloudoffset = -u_time*u_wind/2000.;
+	float clouddist = length(cloudcoord);
 
-	float cloud = ((
-		  simplex3(vec3(vec2(1, 4) +  1.0*cloudcoord + cloudoffset, 0.01*u_time))/1.0
-		+ simplex3(vec3(vec2(2, 3) +  2.0*cloudcoord + cloudoffset, 0.02*u_time))/2.0
-		+ simplex3(vec3(vec2(3, 2) +  4.0*cloudcoord + cloudoffset, 0.04*u_time))/4.0
-		+ simplex3(vec3(vec2(4, 1) + 16.0*cloudcoord + cloudoffset, 0.04*u_time))/8.0
-	)/(1./1. + 1./2. + 1./4. + 1./8.) + 1.)/2.;
-	cloud *= 1. - smoothstep(1., 40., length(cloudcoord));
+	cloudcoord -= u_time*u_wind/2000.;
+
+	float cloud = 0.5*(
+		  simplex3(vec3( 1.*cloudcoord, 0.01*u_time))
+		+ simplex3(vec3( 2.*cloudcoord, 0.02*u_time))*0.5
+		+ simplex3(vec3( 4.*cloudcoord, 0.04*u_time))*0.25
+		+ simplex3(vec3(16.*cloudcoord, 0.04*u_time))*0.125
+	)/(1. + 0.5 + 0.25 + 0.125) + 0.5;
+	cloud *= 1. - smoothstep(1., 40., clouddist);
 	cloud = max(0., 1. - exp(-5.*(cloud + u_cloudiness - 1.)));
 
 	return cloud;
@@ -150,7 +145,7 @@ void main() {
 
 	vec3 sky = max(vec3(0), textureCube(u_sky, r).rgb);
 
-	vec3 sunlight = sun_light(r);
+	vec3 sunlight = vec3(2000);//sun_light(r);
 	vec3 sun = sun_power(r)*sunlight;
 
 	// Cloudiness
@@ -158,20 +153,20 @@ void main() {
 	sky = mix(sky, sunlight/50.*max(0., dot(u_sundir, vec3(0, 1, 0))), cloud);
 
 	const float n1 = 1., n2 = 1.333;
-	float r0 = sqr((n1 - n2)/(n1 + n2));
+	const float r0 = pow((n1 - n2)/(n1 + n2), 2.);
 	float fresnel = r0 + (1. - r0)*pow(1. - max(0., dot(normal, v)), 5.);
 
-	// Cresting foam
-	vec3 foam = sunlight/50.*max(0., dot(u_sundir, r))
-		*smoothstep(-0.05, 0.1, dot(u_sundir, vec3(0, 1, 0)))
-		*((
-			  simplex3(vec3(5.*u_scale*v_uv, 0.5*u_time))*2.
-			+ simplex3(vec3(1.*u_scale*v_uv, 0.1*u_time))*1.
-		)/(2. + 1.) + 1.)/2.;
+//	// Cresting foam
+//	vec3 foam = sunlight/50.*max(0., dot(u_sundir, r))
+//		*smoothstep(-0.05, 0.1, dot(u_sundir, vec3(0, 1, 0)))
+//		*((
+//			  simplex3(vec3(5.*u_scale*v_uv, 0.5*u_time))*2.
+//			+ simplex3(vec3(1.*u_scale*v_uv, 0.1*u_time))*1.
+//		)/(2. + 1.) + 1.)/2.;
 	float foaminess = smoothstep(1. - u_foaminess, 1., 1. - v_jacobian);
 
 	vec3 rgb = mix(u_color, sky + (foaminess > 0. ? vec3(0) : sun), fresnel)
-		+ foam*foaminess*(1. + fresnel);
+;//		+ foam*foaminess*(1. + fresnel);
 
 	rgb *= u_hdrscale;
 	float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
