@@ -181,7 +181,8 @@ window.onload = function() {
 	gl = WebGLUtils.setupWebGL(canvas);
 	if(!gl) alert('WebGL unavailable');
 
-	glaniso = gl.getExtension('EXT_texture_filter_anisotropic');
+	glaniso = gl.getExtension('EXT_texture_filter_anisotropic')
+		|| gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
 	glhalf = gl.getExtension('OES_texture_half_float');
 	glhalflinear = gl.getExtension('OES_texture_half_float_linear');
 
@@ -236,11 +237,13 @@ window.onload = function() {
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wavesdim, wavesdim, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+	gl.generateMipmap(gl.TEXTURE_2D);
 
 	gl.bindTexture(gl.TEXTURE_2D, textures.waves[1]);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wavesdim, wavesdim, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+	gl.generateMipmap(gl.TEXTURE_2D);
 
 	textures.sky = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_CUBE_MAP, textures.sky);
@@ -252,6 +255,8 @@ window.onload = function() {
 	gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, gl.RGBA, skyres, skyres, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
 	gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
 	fbos = {};
 
@@ -284,7 +289,10 @@ window.onload = function() {
 		gen_fbo(gl.TEXTURE_CUBE_MAP_NEGATIVE_X, textures.sky),
 		gen_fbo(gl.TEXTURE_CUBE_MAP_POSITIVE_Y, textures.sky),
 		gen_fbo(gl.TEXTURE_CUBE_MAP_POSITIVE_Z, textures.sky),
-		gen_fbo(gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, textures.sky)
+		gen_fbo(gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, textures.sky),
+
+		// Never used, but there for completeness
+		gen_fbo(gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, textures.sky)
 	];
 
 	// Set up geometry
@@ -420,6 +428,8 @@ function gen_fbo(c0type, c0tex) {
 		alert('FATAL: incomplete framebuffer');
 		console.trace();
 	}
+
+	gl.clear(gl.COLOR_BUFFER_BIT);
 
 	return fbo;
 }

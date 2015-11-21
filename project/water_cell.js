@@ -1,4 +1,7 @@
-// Generates a list of water cells, based on the camera's current position
+// Generates a list of water cells, based on the camera's current position, by
+// recursively creating a quad tree. The descision to split a node is based on
+// the projected solid angle of that node compared again the threshold stored
+// in lodbias.
 function gen_cells() {
 	var cells = (function split_cell(cell) {
 		var x1 = cell.x - camera.xyz[0];
