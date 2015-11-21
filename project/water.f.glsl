@@ -32,30 +32,8 @@ float sqr(float x) {
 	return x*x;
 }
 
-float rand2(vec2 seed) {
-	return fract(43758.5453*sin(dot(seed, vec2(12.9898, 78.233))));
-}
-
 float rand3(vec3 seed) {
 	return fract(43758.5453*sin(dot(seed, vec3(12.9898, 78.233, 89.3414))));
-}
-
-float smooth_rand2(vec2 seed) {
-	vec2 b = floor(seed);
-	vec2 o = fract(seed);
-	return mix(
-		mix(
-			rand2(b),
-			rand2(b + vec2(1, 0)),
-			o.x
-		),
-		mix(
-			rand2(b + vec2(0, 1)),
-			rand2(b + vec2(1, 1)),
-			o.x
-		),
-		o.y
-	);
 }
 
 vec3 simplex3_grad(vec3 coord) {
@@ -184,8 +162,11 @@ void main() {
 	float fresnel = r0 + (1. - r0)*pow(1. - max(0., dot(normal, v)), 5.);
 
 	// Cresting foam
-	vec3 foam = sunlight/100.*max(0., dot(u_sundir, vec3(0, 1, 0)))
-		*(smooth_rand2(400.*v_uv) + smooth_rand2(200.*v_uv))/2.;
+	vec3 foam = sunlight/50.*max(0., dot(u_sundir, r))
+		*((
+			  simplex3(vec3(5.*u_scale*v_uv, 0.5*u_time))*2.
+			+ simplex3(vec3(1.*u_scale*v_uv, 0.1*u_time))*1.
+		)/(2. + 1.) + 1.)/2.;
 	float foaminess = smoothstep(1. - u_foaminess, 1., 1. - v_jacobian);
 
 	vec3 rgb = mix(u_color, sky + (foaminess > 0. ? vec3(0) : sun), fresnel)

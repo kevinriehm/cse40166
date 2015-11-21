@@ -25,6 +25,7 @@ var choppiness; // Scaling factor for displacement vector
 var cloudiness; // Cloud noise threshold
 var daytime; // Time of day (for Sun position)
 var foaminess; // Cresting texture threshold
+var fov; // Vertical field of view in degrees
 var hdrscale; // Raw pixel scaling factor before x/(1 + x) compression
 var horizon; // Maximum distance of water cells
 var lodbias; // Limit factor of cell division
@@ -48,6 +49,7 @@ var prevtime;
 var frames;
 
 window.onload = function() {
+	fov = 100;
 	hdrscale = 0.2;
 	horizon = 1000;
 	lodbias = 1;
@@ -60,7 +62,7 @@ window.onload = function() {
 	stdmeridian = 0;
 
 	camera = {
-		xyz: vec3(0, 10, 0),
+		xyz: vec3(0, 15, 0),
 		rot: vec3(0, 0, 0)
 	};
 
@@ -82,59 +84,53 @@ window.onload = function() {
 		document.getElementById('daytimedisplay').textContent
 			= Math.floor(daytime) + ':' + minstr;
 	};
-	document.getElementById('daytime').dispatchEvent(new Event('input'));
 
 	document.getElementById('wavesamplitude').oninput = function() {
 		wavesamplitude = Number(this.value);
 		document.getElementById('wavesamplitudedisplay').textContent = this.value;
 	};
-	document.getElementById('wavesamplitude').dispatchEvent(new Event('input'));
 
 	document.getElementById('wavesscale').oninput = function() {
 		wavesscale = Number(this.value);
 		document.getElementById('wavesscaledisplay').textContent = this.value;
 	};
-	document.getElementById('wavesscale').dispatchEvent(new Event('input'));
-
-	document.getElementById('foaminess').oninput = function() {
-		foaminess = Number(this.value);
-		document.getElementById('foaminessdisplay').textContent = this.value;
-	};
-	document.getElementById('foaminess').dispatchEvent(new Event('input'));
 
 	document.getElementById('choppiness').oninput = function() {
 		choppiness = Number(this.value);
 		document.getElementById('choppinessdisplay').textContent = this.value;
 	};
-	document.getElementById('choppiness').dispatchEvent(new Event('input'));
+
+	document.getElementById('foaminess').oninput = function() {
+		foaminess = Number(this.value);
+		document.getElementById('foaminessdisplay').textContent = this.value;
+	};
 
 	document.getElementById('windx').oninput = function() {
 		wind = wind || vec2(0, 0);
 		wind[0] = Number(this.value);
 		document.getElementById('windxdisplay').textContent = this.value;
 	};
-	document.getElementById('windx').dispatchEvent(new Event('input'));
 
 	document.getElementById('windy').oninput = function() {
 		wind = wind || vec2(0, 0);
 		wind[1] = Number(this.value);
 		document.getElementById('windydisplay').textContent = this.value;
 	};
-	document.getElementById('windy').dispatchEvent(new Event('input'));
 
 	document.getElementById('turbidity').oninput = function() {
 		turbidity = Number(this.value);
 		document.getElementById('turbiditydisplay').textContent = this.value;
 	};
-	document.getElementById('turbidity').dispatchEvent(new Event('input'));
 
 	document.getElementById('cloudiness').oninput = function() {
 		cloudiness = Number(this.value);
 		document.getElementById('cloudinessdisplay').textContent = this.value;
 	};
-	document.getElementById('cloudiness').dispatchEvent(new Event('input'));
 
 	document.getElementById('anisotropy').oninput = function() {
+		if(!glaniso)
+			return;
+
 		var anisotropy = 1 << this.value;
 
 		gl.bindTexture(gl.TEXTURE_2D, textures.waves[0]);
@@ -160,6 +156,25 @@ window.onload = function() {
 	};
 	document.getElementById('wavesdim').dispatchEvent(new Event('change'));
 
+	document.getElementById('preset').onchange
+		= document.getElementById('preset').onkeyup
+		= function() {
+			var settings = JSON.parse(this.value);
+
+			for(var id in settings) {
+				var element = document.getElementById(id);
+
+				element.value = settings[id];
+
+				if(element.oninput)
+					element.dispatchEvent(new Event('input'));
+
+				if(element.onchange)
+					element.dispatchEvent(new Event('change'));
+			}
+		};
+	document.getElementById('preset').dispatchEvent(new Event('change'));
+
 	canvas = document.getElementById('canvas');
 	canvas.tabIndex = 9999;
 	canvas.style.outline = 'none';
@@ -176,6 +191,11 @@ window.onload = function() {
 
 		e.stopPropagation();
 	};
+
+	(window.onresize = function() {
+		canvas.width = document.documentElement.clientWidth - 2*canvas.offsetLeft;
+		canvas.height = document.documentElement.clientHeight - 2*canvas.offsetTop;
+	})();
 
 	// Set up WebGL
 	gl = WebGLUtils.setupWebGL(canvas);
@@ -358,8 +378,10 @@ window.onload = function() {
 
 	// Finalize configuration and go
 	if(glaniso) {
-		document.getElementById('anisotropy').max = Math.round(
-			Math.log(gl.getParameter(glaniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT))/Math.log(2));
+		document.getElementById('anisotropy').value
+			= document.getElementById('anisotropy').max
+			= Math.round(Math.log(gl.getParameter(
+				glaniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT))/Math.log(2));
 		document.getElementById('anisotropy').dispatchEvent(new Event('input'));
 	}
 
@@ -657,7 +679,7 @@ function render_scene(suninfo, time) {
 	camrot = mult(rotateZ(-camera.rot[2]), camrot);
 	camrot = mult(rotateY(-camera.rot[1]), camrot);
 	camrot = mult(rotateX(-camera.rot[0]), camrot);
-	camrot = mult(perspective(100, 1/1, 0.1, horizon), camrot);
+	camrot = mult(perspective(100, canvas.width/canvas.height, 0.1, horizon), camrot);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, dome.points.buffer);
 	gl.enableVertexAttribArray(programs.dome.a_position);
@@ -685,6 +707,7 @@ function render_scene(suninfo, time) {
 	// Water grid
 	gl.useProgram(programs.water);
 
+	gl.enable(gl.CULL_FACE);
 	gl.enable(gl.DEPTH_TEST);
 
 	var cam = mat4();
@@ -692,7 +715,7 @@ function render_scene(suninfo, time) {
 	cam = mult(rotateZ(-camera.rot[2]), cam);
 	cam = mult(rotateY(-camera.rot[1]), cam);
 	cam = mult(rotateX(-camera.rot[0]), cam);
-	cam = mult(perspective(100, 1/1, 0.1, horizon), cam);
+	cam = mult(perspective(fov, canvas.width/canvas.height, 0.1, horizon), cam);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, water.points.buffer);
 	gl.enableVertexAttribArray(programs.water.a_position);
@@ -745,6 +768,8 @@ function render_scene(suninfo, time) {
 		gl.drawElements(wireframe ? gl.LINE_STRIP : gl.TRIANGLE_STRIP,
 			water.indices.length, gl.UNSIGNED_SHORT, 0);
 	});
+
+	gl.disable(gl.CULL_FACE);
 }
 
 function render(now) {
