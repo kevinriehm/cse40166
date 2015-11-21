@@ -22,14 +22,14 @@ float sqr(float x) {
 	return x*x;
 }
 
-float rand(vec3 seed) {
+float rand3(vec3 seed) {
 	return fract(43758.5453*sin(dot(seed, vec3(12.9898, 78.233, 89.3414))));
 }
 
 vec3 simplex3_grad(vec3 coord) {
 	const float period = 256.;
 
-	int i = int(12.*rand(mod(coord, period)));
+	int i = int(12.*rand3(mod(coord, period)));
 
 	if(i ==  0) return vec3( 0, -1, -1);
 	if(i ==  1) return vec3( 0, -1,  1);
@@ -111,18 +111,8 @@ float sun_power() {
 	return exp(2048.*(dot(u_sundir, normalize(v_xyz)) - 1.));
 }
 
-void main() {
-	float theta = atan(length(v_xyz.xz), v_xyz.y);
-
-	// Sky lights
-	vec4 sky = textureCube(u_sky, v_xyz);
-
-	vec3 sunlight = sun_light();
-	float sunpower = sun_power();
-
-	vec3 rgb = sky.rgb + sunpower*sunlight;
-
-	// Simplex noise clouds
+// Simplex noise clouds
+float cloud_cover() {
 	vec2 cloudcoord = 0.5*v_xyz.xz/v_xyz.y;
 	vec2 cloudoffset = -u_time*u_wind/2000.;
 
@@ -135,6 +125,21 @@ void main() {
 	cloud *= 1. - smoothstep(1., 40., length(cloudcoord));
 	cloud = max(0., 1. - exp(-5.*(cloud + u_cloudiness - 1.)));
 
+	return cloud;
+}
+
+void main() {
+	float theta = atan(length(v_xyz.xz), v_xyz.y);
+
+	// Sky lights
+	vec4 sky = textureCube(u_sky, v_xyz);
+
+	vec3 sunlight = sun_light();
+	float sunpower = sun_power();
+
+	vec3 rgb = sky.rgb + sunpower*sunlight;
+
+	float cloud = cloud_cover();
 	rgb = mix(rgb, sunlight/50.*max(0., dot(u_sundir, vec3(0, 1, 0))), cloud);
 
 	// HDR -> LDR

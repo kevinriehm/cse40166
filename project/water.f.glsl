@@ -18,6 +18,10 @@ uniform float u_turbidity;
 
 uniform float u_hdrscale;
 
+uniform float u_time;
+uniform vec2 u_wind;
+uniform float u_cloudiness;
+
 varying float v_jacobian;
 varying vec2 v_uv;
 varying vec3 v_xyz;
@@ -30,6 +34,10 @@ float sqr(float x) {
 
 float rand2(vec2 seed) {
 	return fract(43758.5453*sin(dot(seed, vec2(12.9898, 78.233))));
+}
+
+float rand3(vec3 seed) {
+	return fract(43758.5453*sin(dot(seed, vec3(12.9898, 78.233, 89.3414))));
 }
 
 float smooth_rand2(vec2 seed) {
@@ -47,6 +55,68 @@ float smooth_rand2(vec2 seed) {
 			o.x
 		),
 		o.y
+	);
+}
+
+vec3 simplex3_grad(vec3 coord) {
+	const float period = 256.;
+
+	int i = int(12.*rand3(mod(coord, period)));
+
+	if(i ==  0) return vec3( 0, -1, -1);
+	if(i ==  1) return vec3( 0, -1,  1);
+	if(i ==  2) return vec3( 0,  1, -1);
+	if(i ==  3) return vec3( 0,  1,  1);
+	if(i ==  4) return vec3(-1,  0, -1);
+	if(i ==  5) return vec3(-1,  0,  1);
+	if(i ==  6) return vec3(-1, -1,  0);
+	if(i ==  7) return vec3(-1,  1,  0);
+	if(i ==  8) return vec3( 1,  0, -1);
+	if(i ==  9) return vec3( 1,  0,  1);
+	if(i == 10) return vec3( 1, -1,  0);
+	            return vec3( 1,  1,  0);
+}
+
+float simplex3(vec3 coord) {
+	vec3 skew = coord + vec3(coord.x + coord.y + coord.z)/3.;
+	vec3 bskew = floor(skew);
+	vec3 base = bskew - vec3(bskew.x + bskew.y + bskew.z)/6.;
+	vec3 offset = coord - base;
+
+	vec3 cskew1, cskew2;
+	if(offset.x > offset.y) {
+		if(offset.y > offset.z) {
+			cskew1 = vec3(1, 0, 0);
+			cskew2 = vec3(1, 1, 0);
+		} else if(offset.x > offset.z) {
+			cskew1 = vec3(1, 0, 0);
+			cskew2 = vec3(1, 0, 1);
+		} else {
+			cskew1 = vec3(0, 0, 1);
+			cskew2 = vec3(1, 0, 1);
+		}
+	} else {
+		if(offset.z > offset.y) {
+			cskew1 = vec3(0, 0, 1);
+			cskew2 = vec3(0, 1, 1);
+		} else if(offset.z > offset.x) {
+			cskew1 = vec3(0, 1, 0);
+			cskew2 = vec3(0, 1, 1);
+		} else {
+			cskew1 = vec3(0, 1, 0);
+			cskew2 = vec3(1, 1, 0);
+		}
+	}
+
+	vec3 c1 = offset - cskew1 + 1./6.;
+	vec3 c2 = offset - cskew2 + 1./3.;
+	vec3 c3 = offset - 1./2.;
+
+	return 32.*(
+		  sqr(sqr(max(0., 0.5 - dot(offset, offset))))*dot(offset, simplex3_grad(bskew))
+		+ sqr(sqr(max(0., 0.5 - dot(c1, c1))))*dot(c1, simplex3_grad(bskew + cskew1))
+		+ sqr(sqr(max(0., 0.5 - dot(c2, c2))))*dot(c2, simplex3_grad(bskew + cskew2))
+		+ sqr(sqr(max(0., 0.5 - dot(c3, c3))))*dot(c3, simplex3_grad(bskew + vec3(1)))
 	);
 }
 
@@ -75,6 +145,23 @@ float sun_power(vec3 dir) {
 	return exp(2048.*(dot(u_sundir, dir) - 1.));
 }
 
+// Simplex noise clouds
+float cloud_cover(vec3 r) {
+	vec2 cloudcoord = 0.5*r.xz/r.y;
+	vec2 cloudoffset = -u_time*u_wind/2000.;
+
+	float cloud = ((
+		  simplex3(vec3(vec2(1, 4) +  1.0*cloudcoord + cloudoffset, 0.01*u_time))/1.0
+		+ simplex3(vec3(vec2(2, 3) +  2.0*cloudcoord + cloudoffset, 0.02*u_time))/2.0
+		+ simplex3(vec3(vec2(3, 2) +  4.0*cloudcoord + cloudoffset, 0.04*u_time))/4.0
+		+ simplex3(vec3(vec2(4, 1) + 16.0*cloudcoord + cloudoffset, 0.04*u_time))/8.0
+	)/(1./1. + 1./2. + 1./4. + 1./8.) + 1.)/2.;
+	cloud *= 1. - smoothstep(1., 40., length(cloudcoord));
+	cloud = max(0., 1. - exp(-5.*(cloud + u_cloudiness - 1.)));
+
+	return cloud;
+}
+
 void main() {
 	vec4 waves1 = texture2D(u_waves[1], v_uv);
 	vec3 normal = normalize(vec3(-waves1.r, 1, -waves1.g));
@@ -87,6 +174,10 @@ void main() {
 
 	vec3 sunlight = sun_light(r);
 	vec3 sun = sun_power(r)*sunlight;
+
+	// Cloudiness
+	float cloud = cloud_cover(r);
+	sky = mix(sky, sunlight/50.*max(0., dot(u_sundir, vec3(0, 1, 0))), cloud);
 
 	const float n1 = 1., n2 = 1.333;
 	float r0 = sqr((n1 - n2)/(n1 + n2));

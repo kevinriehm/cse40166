@@ -718,6 +718,10 @@ function render_scene(suninfo, time) {
 
 	gl.uniform1f(programs.water.u_hdrscale, hdrscale);
 
+	gl.uniform1f(programs.water.u_time, time);
+	gl.uniform2fv(programs.water.u_wind, wind);
+	gl.uniform1f(programs.water.u_cloudiness, cloudiness);
+
 	cells.forEach(function(cell) {
 		gl.uniformMatrix4fv(programs.water.u_modelview, gl.FALSE, flatten(cell.mv));
 
