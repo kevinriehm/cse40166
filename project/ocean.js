@@ -49,7 +49,7 @@ var prevtime;
 var frames;
 
 window.onload = function() {
-	fov = 100;
+	fov = 80;
 	hdrscale = 0.2;
 	horizon = 1000;
 	lodbias = 1;
@@ -176,20 +176,28 @@ window.onload = function() {
 	document.getElementById('preset').dispatchEvent(new Event('change'));
 
 	canvas = document.getElementById('canvas');
-	canvas.tabIndex = 9999;
-	canvas.style.outline = 'none';
-	canvas.onkeydown = function(e) {
-		switch(e.keyCode) {
-		case 37: camera.rot[1] += 1; break; // Left arrow
-		case 38: camera.rot[0] += 1; break; // Up arrow
-		case 39: camera.rot[1] -= 1; break; // Right arrow
-		case 40: camera.rot[0] -= 1; break; // Down arrow
-		}
+
+	canvas.onmousedown = function(e) {
+		canvas.draglast = vec2(e.clientX, e.clientY);
+	};
+
+	canvas.onmousemove = function(e) {
+		if(!canvas.draglast)
+			return;
+
+		var dragnow = vec2(e.clientX, e.clientY);
+
+		camera.rot[0] += 100*(dragnow[1] - canvas.draglast[1])/canvas.width;
+		camera.rot[1] += 100*(dragnow[0] - canvas.draglast[0])/canvas.height;
 
 		// Reasonable range clamping
 		camera.rot[0] = Math.max(-90, Math.min(camera.rot[0], 90));
 
-		e.stopPropagation();
+		canvas.draglast = dragnow;
+	};
+
+	document.onmouseup = function(e) {
+		delete canvas.draglast;
 	};
 
 	(window.onresize = function() {
@@ -679,7 +687,7 @@ function render_scene(suninfo, time) {
 	camrot = mult(rotateZ(-camera.rot[2]), camrot);
 	camrot = mult(rotateY(-camera.rot[1]), camrot);
 	camrot = mult(rotateX(-camera.rot[0]), camrot);
-	camrot = mult(perspective(100, canvas.width/canvas.height, 0.1, horizon), camrot);
+	camrot = mult(perspective(fov, canvas.width/canvas.height, 0.1, horizon), camrot);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, dome.points.buffer);
 	gl.enableVertexAttribArray(programs.dome.a_position);

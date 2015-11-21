@@ -163,6 +163,7 @@ void main() {
 
 	// Cresting foam
 	vec3 foam = sunlight/50.*max(0., dot(u_sundir, r))
+		*smoothstep(-0.05, 0.1, dot(u_sundir, vec3(0, 1, 0)))
 		*((
 			  simplex3(vec3(5.*u_scale*v_uv, 0.5*u_time))*2.
 			+ simplex3(vec3(1.*u_scale*v_uv, 0.1*u_time))*1.
