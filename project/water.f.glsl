@@ -72,7 +72,7 @@ void main() {
 	r.y = abs(r.y); // Hack, since we aren't doing inter-wave reflections
 
 	// Base water color
-	vec3 sea = u_color*(1. - smoothstep(pi/2. - 0.1, pi/2. + 0.2, u_suntheta));
+	vec3 sea = u_color*(1. - smoothstep(pi/2. - 0.1, pi/2. + 0.1, u_suntheta));
 
 	// Atmosphere and Sun
 	vec3 sky = textureCube(u_sky, r).rgb;

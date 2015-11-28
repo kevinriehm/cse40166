@@ -474,7 +474,7 @@ function render_sky_map(suninfo) {
 	gl.vertexAttribPointer(programs.sky.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
 
 	gl.uniform3fv(programs.sky.u_sundir, suninfo.dir);
-	gl.uniform1f(programs.sky.u_suntheta, suninfo.theta);
+	gl.uniform1f(programs.sky.u_suntheta, suninfo.theta/1.05);
 	gl.uniform1f(programs.sky.u_turbidity, turbidity);
 
 	for(var i = 0; i < 5; i++) {
