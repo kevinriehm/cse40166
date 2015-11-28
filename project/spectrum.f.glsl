@@ -91,8 +91,11 @@ vec2 h0(vec2 k) {
 }
 
 vec2 h(vec2 k, float t) {
+	const float small = 0.01; // Threshold for capillary wave dynamics
 	const float w0 = 2.*pi/256.; // Base frequency
-	float wt = floor(sqrt(g*length(k))/w0)*w0*t;
+	float lk = length(k);
+//	float wt = t*floor(sqrt(g*lk)/w0)*w0;
+	float wt = t*sqrt(g*lk*(lk*u_scale < small ? 1. + sqr(lk)*sqr(small) : 1.));
 	return cmul(h0(k), cexp(wt)) + cmul(cconj(h0(-k)), cexp(-wt));
 }
 

@@ -14,6 +14,7 @@ var fbos;
 var textures;
 
 var camera;
+var wavesffts;
 
 // Geometry
 var dome;
@@ -38,7 +39,8 @@ var watercolor; // Base "ambient" color of water
 var waterdim; // Maximum resolution of a single water cell
 var wavesamplitude; // Height of waves
 var wavesdim; // Resolution of wave heightmap
-var wavesscale; // World-space size of heightmap
+var wavesscale; // Base world-space size of heightmap
+var wavesscalescale; // Progression of world-space sizes of heightmaps
 var wind; // Wind vector
 var wireframe; // Lines (instead of triangles?)
 
@@ -54,6 +56,7 @@ var pausetime;
 var timeoffset;
 
 var prevtime;
+var prevfps;
 var frames;
 
 window.onload = function() {
@@ -63,8 +66,9 @@ window.onload = function() {
 	horizon = 1000;
 	lodbias = 1;
 	skyres = 32;
-	watercolor = vec3(0, 0.2, 0.3);
+	watercolor = vec3(0.2, 1.2, 1.6);
 	waterdim = 8;
+	wavesscalescale = Math.sqrt(13);
 
 	latitude = 0;
 	longitude = 0;
@@ -75,6 +79,8 @@ window.onload = function() {
 		xyz: vec3(0, 15, 0),
 		rot: vec3(0, 0, 0)
 	};
+
+	wavesffts = [];
 
 	// Hook up the controls
 	canvas = document.getElementById('canvas');
@@ -108,6 +114,9 @@ window.onload = function() {
 
 	document.getElementById('wavesscale').oninput = function() {
 		wavesscale = Number(this.value);
+		wavesffts.forEach(function(fft, i) {
+			fft.set_scale(wavesscale*Math.pow(wavesscalescale, i));
+		});
 		document.getElementById('wavesscaledisplay').textContent = this.value;
 	};
 
@@ -149,13 +158,9 @@ window.onload = function() {
 
 		var anisotropy = 1 << this.value;
 
-		gl.bindTexture(gl.TEXTURE_2D, textures.waves[0]);
-		gl.texParameteri(gl.TEXTURE_2D, glaniso.TEXTURE_MAX_ANISOTROPY_EXT, anisotropy);
-
-		gl.bindTexture(gl.TEXTURE_2D, textures.waves[1]);
-		gl.texParameteri(gl.TEXTURE_2D, glaniso.TEXTURE_MAX_ANISOTROPY_EXT, anisotropy);
-
-		gl.bindTexture(gl.TEXTURE_2D, null);
+		wavesffts.forEach(function(fft) {
+			fft.set_anisotropy(anisotropy);
+		});
 
 		document.getElementById('anisotropydisplay').textContent = anisotropy;
 	};
@@ -175,8 +180,9 @@ window.onload = function() {
 
 	document.getElementById('wavesdim').onchange = function() {
 		wavesdim = Number(this.value);
-		if(textures)
-			resize_wave_textures();
+		wavesffts.forEach(function(fft) {
+			fft.resize(wavesdim);
+		});
 	};
 	document.getElementById('wavesdim').dispatchEvent(new Event('change'));
 
@@ -198,6 +204,10 @@ window.onload = function() {
 			}
 		};
 	document.getElementById('preset').dispatchEvent(new Event('change'));
+
+	window.onresize = function() {
+		document.getElementById('renderscale').dispatchEvent(new Event('input'));
+	};
 
 	canvas.onmousedown = function(e) {
 		if(!playing)
@@ -224,18 +234,6 @@ window.onload = function() {
 	document.onmouseup = function(e) {
 		delete canvas.draglast;
 	};
-
-	(window.onresize = function() {
-		var width = canvas.clientWidth;
-		var height = canvas.clientHeight;
-
-		// This might add a vertical scollbar, thereby shrinking the page
-		if(height > canvas.height)
-			setTimeout(window.onresize, 0);
-
-//		canvas.width = width;
-//		canvas.height = height;
-	})();
 
 	// Set up WebGL
 	gl = WebGLUtils.setupWebGL(canvas);
@@ -269,47 +267,14 @@ window.onload = function() {
 	};
 
 	// Set up render targets
+	wavesffts.push(new WavesFFT(wavesdim, wavesscale));
+	wavesffts.push(new WavesFFT(wavesdim, wavesscale*wavesscalescale));
+
 	textures = {};
 
 	textures.cloud = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, textures.cloud);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, cloudres, cloudres, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-	gl.generateMipmap(gl.TEXTURE_2D);
-
-	textures.spectrum_height = gen_wave_texture();
-	textures.spectrum_slope = gen_wave_texture();
-	textures.spectrum_disp = gen_wave_texture();
-
-	textures.fft_height = [
-		textures.spectrum_height,
-		gen_wave_texture()
-	];
-
-	textures.fft_slope = [
-		textures.spectrum_slope,
-		gen_wave_texture()
-	];
-
-	textures.fft_disp = [
-		textures.spectrum_disp,
-		gen_wave_texture()
-	];
-
-	textures.waves = [
-			gl.createTexture(),
-			gl.createTexture()
-	];
-
-	gl.bindTexture(gl.TEXTURE_2D, textures.waves[0]);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wavesdim, wavesdim, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-	gl.generateMipmap(gl.TEXTURE_2D);
-
-	gl.bindTexture(gl.TEXTURE_2D, textures.waves[1]);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wavesdim, wavesdim, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
 	gl.generateMipmap(gl.TEXTURE_2D);
@@ -327,33 +292,14 @@ window.onload = function() {
 	gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
+	textures.ripples = [
+		load_image('ripples0.png'),
+		load_image('ripples1.png')
+	];
+
 	fbos = {};
 
 	fbos.cloud = gen_fbo(gl.TEXTURE_2D, textures.cloud);
-
-	fbos.spectrum_height = gen_fbo(gl.TEXTURE_2D, textures.spectrum_height);
-	fbos.spectrum_slope = gen_fbo(gl.TEXTURE_2D, textures.spectrum_slope);
-	fbos.spectrum_disp = gen_fbo(gl.TEXTURE_2D, textures.spectrum_disp);
-
-	fbos.fft_height = [
-		gen_fbo(gl.TEXTURE_2D, textures.fft_height[0]),
-		gen_fbo(gl.TEXTURE_2D, textures.fft_height[1])
-	];
-
-	fbos.fft_slope = [
-		gen_fbo(gl.TEXTURE_2D, textures.fft_slope[0]),
-		gen_fbo(gl.TEXTURE_2D, textures.fft_slope[1])
-	];
-
-	fbos.fft_disp = [
-		gen_fbo(gl.TEXTURE_2D, textures.fft_disp[0]),
-		gen_fbo(gl.TEXTURE_2D, textures.fft_disp[1])
-	];
-
-	fbos.waves = [
-		gen_fbo(gl.TEXTURE_2D, textures.waves[0]),
-		gen_fbo(gl.TEXTURE_2D, textures.waves[1])
-	];
 
 	fbos.sky = [
 		gen_fbo(gl.TEXTURE_CUBE_MAP_POSITIVE_X, textures.sky),
@@ -444,37 +390,6 @@ window.onload = function() {
 	window.requestAnimationFrame(render);
 };
 
-// Compile shaders and perform introspection to automatically list the attributes and uniforms
-function build_program(vshader, fshader) {
-	var array = /(.*)\[\d*\]/;
-
-	var program = initShaders(gl, vshader, fshader);
-
-	var nuniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
-	var nattribs = gl.getProgramParameter(program, gl.ACTIVE_ATTRIBUTES);
-
-	for(var ui = 0; ui < nuniforms; ui++) {
-		var info = gl.getActiveUniform(program, ui);
-
-		if(info.size > 1) {
-			var parts = info.name.match(array);
-
-			program[parts[1]] = [];
-			for(var i = 0; i < info.size; i++)
-				program[parts[1]].push(
-					gl.getUniformLocation(program, parts[1] + '[' + i + ']')
-				);
-		} else program[info.name] = gl.getUniformLocation(program, info.name);
-	}
-
-	for(var ai = 0; ai < nattribs; ai++) {
-		var info = gl.getActiveAttrib(program, ai);
-		program[info.name] = gl.getAttribLocation(program, info.name)
-	}
-
-	return program;
-}
-
 // Calculates the position and color of the Sun in the sky, based on the time of day
 function calc_sun() {
 	// Sun position
@@ -515,62 +430,6 @@ function calc_sun() {
 	return {dir: dir, theta: theta, phi: phi, color: color};
 }
 
-// Creates a framebuffer and attaches a texture to it
-function gen_fbo(c0type, c0tex) {
-	var fbo = gl.createFramebuffer();
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, c0type, c0tex, 0);
-
-	if(gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-		alert('FATAL: incomplete framebuffer');
-		console.trace();
-	}
-
-	gl.clear(gl.COLOR_BUFFER_BIT);
-
-	return fbo;
-}
-
-// Creates a texture suitable for an intermediary step in the FFT process
-function gen_wave_texture() {
-	var tex = gl.createTexture();
-	gl.bindTexture(gl.TEXTURE_2D, tex);
-	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wavesdim, wavesdim, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-	return tex;
-}
-
-// Updates the wave textures with the current wavesdim
-function resize_wave_textures() {
-	[
-		textures.spectrum_height,
-		textures.spectrum_slope,
-		textures.spectrum_disp,
-		textures.fft_height[0],
-		textures.fft_height[1],
-		textures.fft_slope[0],
-		textures.fft_slope[1],
-		textures.fft_disp[0],
-		textures.fft_disp[1],
-		textures.waves[0],
-		textures.waves[1]
-	].forEach(function(tex) {
-		gl.bindTexture(gl.TEXTURE_2D, tex);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, wavesdim, wavesdim, 0, gl.RGBA, glhalf.HALF_FLOAT_OES, null);
-	});
-
-	[
-		textures.waves[0],
-		textures.waves[1]
-	].forEach(function(tex) {
-		gl.bindTexture(gl.TEXTURE_2D, tex);
-		gl.generateMipmap(gl.TEXTURE_2D);
-	});
-
-	gl.bindTexture(gl.TEXTURE_2D, null);
-}
-
 // Update the cloud texture
 function render_cloud_map() {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.cloud);
@@ -588,172 +447,18 @@ function render_cloud_map() {
 	gl.generateMipmap(gl.TEXTURE_2D);
 }
 
-// Update the wave spectrum texture
-function render_spectrum(time) {
-	gl.viewport(0, 0, wavesdim, wavesdim);
-
-	gl.useProgram(programs.spectrum);
-
-	gl.disable(gl.DEPTH_TEST);
-
-	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
-	gl.enableVertexAttribArray(programs.spectrum.a_position);
-	gl.vertexAttribPointer(programs.spectrum.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
-
-	gl.uniform2f(programs.spectrum.u_dim, wavesdim, wavesdim);
-	gl.uniform2fv(programs.spectrum.u_wind, wind);
-	gl.uniform1f(programs.spectrum.u_amplitude, wavesamplitude);
-	gl.uniform1f(programs.spectrum.u_scale, wavesscale);
-	gl.uniform2f(programs.spectrum.u_seed, 8, 8);
-
-	gl.uniform1f(programs.spectrum.u_time, time);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_height);
-	gl.uniform1i(programs.spectrum.u_output, 0);
-	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_slope);
-	gl.uniform1i(programs.spectrum.u_output, 1);
-	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.spectrum_disp);
-	gl.uniform1i(programs.spectrum.u_output, 2);
-	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+// Update the wave spectrum textures
+function render_spectrums(time) {
+	wavesffts.forEach(function(fft) {
+		fft.render_spectrum(time);
+	});
 }
 
 // Update the wave height, slope, and displacement maps
 function render_wave_maps() {
-	// Rendering to wave FBO
-
-	gl.viewport(0, 0, wavesdim, wavesdim);
-
-	gl.disable(gl.DEPTH_TEST);
-
-	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_2D, textures.fft_height[0]);
-	gl.activeTexture(gl.TEXTURE1);
-	gl.bindTexture(gl.TEXTURE_2D, textures.fft_height[1]);
-
-	gl.activeTexture(gl.TEXTURE2);
-	gl.bindTexture(gl.TEXTURE_2D, textures.fft_slope[0]);
-	gl.activeTexture(gl.TEXTURE3);
-	gl.bindTexture(gl.TEXTURE_2D, textures.fft_slope[1]);
-
-	gl.activeTexture(gl.TEXTURE4);
-	gl.bindTexture(gl.TEXTURE_2D, textures.fft_disp[0]);
-	gl.activeTexture(gl.TEXTURE5);
-	gl.bindTexture(gl.TEXTURE_2D, textures.fft_disp[1]);
-
-	var niter = Math.round(Math.log(wavesdim)/Math.log(2));
-
-	// Horizontal FFT
-	gl.useProgram(programs.fft);
-
-	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
-	gl.enableVertexAttribArray(programs.fft.a_position);
-	gl.vertexAttribPointer(programs.fft.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
-
-	gl.uniform2f(programs.fft.u_dim, wavesdim, wavesdim);
-
-	for(var i = 0; i < niter; i++) {
-		var texin = i&1;
-
-		gl.uniform1f(programs.fft.u_bit, 1 << i);
-		gl.uniform1f(programs.fft.u_bit2, 1 << i + 1);
-
-		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[texin^1]);
-		gl.uniform1i(programs.fft.u_in, 0 + texin);
-		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_slope[texin^1]);
-		gl.uniform1i(programs.fft.u_in, 2 + texin);
-		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_disp[texin^1]);
-		gl.uniform1i(programs.fft.u_in, 4 + texin);
-		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-	}
-
-	// Transpose
-	gl.useProgram(programs.fft_transpose);
-
-	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
-	gl.enableVertexAttribArray(programs.fft_transpose.a_position);
-	gl.vertexAttribPointer(programs.fft_transpose.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
-
-	gl.uniform2f(programs.fft_transpose.u_dim, wavesdim, wavesdim);
-
-	var texin = niter&1;
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[texin^1]);
-	gl.uniform1i(programs.fft_transpose.u_in, 0 + texin);
-	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_slope[texin^1]);
-	gl.uniform1i(programs.fft_transpose.u_in, 2 + texin);
-	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_disp[texin^1]);
-	gl.uniform1i(programs.fft_transpose.u_in, 4 + texin);
-	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-	// Vertical FFT
-	gl.useProgram(programs.fft);
-
-	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
-	gl.enableVertexAttribArray(programs.fft.a_position);
-	gl.vertexAttribPointer(programs.fft.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
-
-	gl.uniform2f(programs.fft.u_dim, wavesdim, wavesdim);
-	gl.uniform2f(programs.fft.u_increment, 0, 1/wavesdim);
-
-	for(var i = 0; i < niter; i++) {
-		var texin = (niter + i + 1)&1;
-
-		gl.uniform1f(programs.fft.u_bit, 1 << i);
-		gl.uniform1f(programs.fft.u_bit2, 1 << i + 1);
-
-		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[texin^1]);
-		gl.uniform1i(programs.fft.u_in, 0 + texin);
-		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_slope[texin^1]);
-		gl.uniform1i(programs.fft.u_in, 2 + texin);
-		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_disp[texin^1]);
-		gl.uniform1i(programs.fft.u_in, 4 + texin);
-		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-	}
-
-	// Finalize FFT (sign change and transpose)
-	gl.useProgram(programs.fft_final);
-
-	gl.disable(gl.DEPTH_TEST);
-
-	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
-	gl.enableVertexAttribArray(programs.fft_final.a_position);
-	gl.vertexAttribPointer(programs.fft_final.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
-
-	gl.uniform1i(programs.fft_final.u_in[0], 1);
-	gl.uniform1i(programs.fft_final.u_in[1], 3);
-	gl.uniform1i(programs.fft_final.u_in[2], 5);
-	gl.uniform2f(programs.fft_final.u_dim, wavesdim, wavesdim);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves[0]);
-	gl.uniform1i(programs.fft_final.u_output, 0);
-	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves[1]);
-	gl.uniform1i(programs.fft_final.u_output, 1);
-	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
-
-	// Generate the wave mipmaps
-	gl.bindTexture(gl.TEXTURE_2D, textures.waves[0]);
-	gl.generateMipmap(gl.TEXTURE_2D);
-
-	gl.bindTexture(gl.TEXTURE_2D, textures.waves[1]);
-	gl.generateMipmap(gl.TEXTURE_2D);
+	wavesffts.forEach(function(fft) {
+		fft.render_wave_maps();
+	});
 }
 
 // Update the atmosphere cube map (not including the Sun or the clouds for resolution reasons)
@@ -807,28 +512,45 @@ function render_scene(suninfo, time) {
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, water.indices.buffer);
 
 	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_2D, textures.waves[0]);
+	gl.bindTexture(gl.TEXTURE_2D, wavesffts[0].textures.waves[0]);
 
 	gl.activeTexture(gl.TEXTURE1);
-	gl.bindTexture(gl.TEXTURE_2D, textures.waves[1]);
+	gl.bindTexture(gl.TEXTURE_2D, wavesffts[0].textures.waves[1]);
 
 	gl.activeTexture(gl.TEXTURE2);
-	gl.bindTexture(gl.TEXTURE_CUBE_MAP, textures.sky);
+	gl.bindTexture(gl.TEXTURE_2D, wavesffts[1].textures.waves[0]);
 
 	gl.activeTexture(gl.TEXTURE3);
+	gl.bindTexture(gl.TEXTURE_2D, wavesffts[1].textures.waves[1]);
+
+	gl.activeTexture(gl.TEXTURE4);
+	gl.bindTexture(gl.TEXTURE_CUBE_MAP, textures.sky);
+
+	gl.activeTexture(gl.TEXTURE5);
 	gl.bindTexture(gl.TEXTURE_2D, textures.cloud);
 
-	gl.uniform1i(programs.water.u_waves[0], 0);
-	gl.uniform1i(programs.water.u_waves[1], 1);
-	gl.uniform1i(programs.water.u_sky, 2);
-	gl.uniform1i(programs.water.u_cloud, 3);
+	gl.activeTexture(gl.TEXTURE6);
+	gl.bindTexture(gl.TEXTURE_2D, textures.ripples[0]);
+
+	gl.activeTexture(gl.TEXTURE7);
+	gl.bindTexture(gl.TEXTURE_2D, textures.ripples[1]);
+
+	gl.uniform1i(programs.water.u_waves0[0], 0);
+	gl.uniform1i(programs.water.u_waves0[1], 1);
+	gl.uniform1i(programs.water.u_waves1[0], 0);
+	gl.uniform1i(programs.water.u_waves1[1], 1);
+	gl.uniform1i(programs.water.u_sky, 4);
+	gl.uniform1i(programs.water.u_cloud, 5);
+	gl.uniform1i(programs.water.u_ripples[0], 6);
+	gl.uniform1i(programs.water.u_ripples[1], 7);
 
 	gl.uniformMatrix4fv(programs.water.u_camera, gl.FALSE, flatten(cam));
 
 	gl.uniform3fv(programs.water.u_cameraxyz, camera.xyz);
 	gl.uniform1f(programs.water.u_choppiness, choppiness);
 	gl.uniform1f(programs.water.u_foaminess, foaminess);
-	gl.uniform1f(programs.water.u_scale, wavesscale);
+	gl.uniform1f(programs.water.u_scale[0], wavesscale);
+	gl.uniform1f(programs.water.u_scale[1], wavesscale*wavesscalescale);
 
 	gl.uniform3fv(programs.water.u_color, watercolor);
 
@@ -902,6 +624,34 @@ function render_scene(suninfo, time) {
 	gl.drawElements(gl.TRIANGLE_STRIP, dome.indices.length, gl.UNSIGNED_BYTE, 0);
 }
 
+// Basically cheat by automatically adjusting the resolution when the FPS drops
+function adjust_resolution(prevfps) {
+	var min = 1e6, max = 0, avg = 0;
+
+	prevfps.forEach(function(x) {
+		min = Math.min(min, x);
+		max = Math.max(max, x);
+		avg += x;
+	});
+
+	avg /= prevfps.length;
+
+	if(max - min > 5)
+		return;
+
+	var renderscale = document.getElementById('renderscale');
+
+	if(avg < 30)
+		renderscale.value = Number(renderscale.value) - 0.05;
+	else if(avg > 50)
+		renderscale.value = Number(renderscale.value) + 0.05;
+
+	// Let's not be silly
+	renderscale.value = Math.max(0.2, renderscale.value);
+
+	renderscale.dispatchEvent(new Event('input'));
+}
+
 function render(now) {
 	if(!pausetime)
 		pausetime = now;
@@ -913,12 +663,20 @@ function render(now) {
 	var nowsec = now/1000;
 
 	// FPS counter
+	if(!prevfps)
+		prevfps = [];
+
 	if(!prevtime)
 		prevtime = now;
 
 	if(now - prevtime >= 1000) {
 		prevtime += Math.floor((now - prevtime)/1000)*1000;
 		console.log(frames);
+		prevfps.push(frames);
+		if(prevfps.length >= 5) {
+			adjust_resolution(prevfps);
+			prevfps = [];
+		}
 		frames = 0;
 	}
 	frames++;
@@ -927,7 +685,7 @@ function render(now) {
 	var suninfo = calc_sun();
 
 	// Do all the rendering
-	render_spectrum(nowsec);
+	render_spectrums(nowsec);
 	render_wave_maps();
 	render_sky_map(suninfo);
 	render_scene(suninfo, nowsec);

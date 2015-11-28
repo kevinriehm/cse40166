@@ -4,12 +4,13 @@ precision highp float;
 
 uniform samplerCube u_sky;
 uniform sampler2D u_cloud;
-uniform sampler2D u_waves[2];
+uniform sampler2D u_waves0[2];
+uniform sampler2D u_waves1[2];
+uniform sampler2D u_ripples[2];
 
 uniform vec3 u_cameraxyz;
 uniform float u_choppiness;
 uniform float u_foaminess;
-uniform float u_scale;
 
 uniform vec3 u_color;
 
@@ -24,9 +25,21 @@ uniform float u_time;
 uniform vec2 u_wind;
 uniform float u_cloudiness;
 
-varying float v_jacobian;
-varying vec2 v_uv;
+varying vec2 v_uv[2];
 varying vec3 v_xyz;
+
+const float pi = 3.14159265;
+
+float rand(vec2 seed) {
+	return fract(43758.5453*sin(dot(seed, vec2(12.9898, 78.253))));
+}
+
+vec2 gauss2(vec2 seed) {
+	float u0 = rand(seed.xy);
+	float u1 = rand(seed.yx);
+	float x = sqrt(-2.*log(clamp(u0, 0.001, 1.)));
+	return x*vec2(cos(2.*pi*u1), sin(2.*pi*u1));
+}
 
 float sun_power(vec3 dir) {
 	return exp(2048.*(dot(u_sundir, dir) - 1.));
@@ -42,12 +55,24 @@ float cloud_cover(vec3 r) {
 }
 
 void main() {
-	vec4 waves1 = texture2D(u_waves[1], v_uv);
-	vec3 normal = normalize(vec3(-waves1.r, 1, -waves1.g));
+	vec4 waves01 = texture2D(u_waves0[1], v_uv[0]);
+	vec4 waves11 = texture2D(u_waves1[1], v_uv[1]);
+	vec3 normal = normalize(vec3(-(waves01.r + waves11.r), 1, -(waves01.g + waves11.g)));
+
+	// Normal maps
+	vec4 ripples0 = texture2D(u_ripples[0], 4.*v_uv[0] + 0.005*u_time*(u_wind + vec2(1, 0)));
+	vec4 ripples1 = texture2D(u_ripples[1], 4.*v_uv[1] - 0.01*u_time*(u_wind + vec2(0, 1)));
+
+	vec3 ns0 = normalize(cross(normal, vec3(1, 0, 0)));
+	vec3 ns1 = normalize(cross(normal, -ns0));
+	normal = normalize(mat3(ns0, ns1, normal)*(2.*(ripples0.rgb + ripples1.rgb) - 2.));
 
 	vec3 v = normalize(u_cameraxyz - v_xyz);
 	vec3 r = reflect(-v, normal);
 	r.y = abs(r.y); // Hack, since we aren't doing inter-wave reflections
+
+	// Base water color
+	vec3 sea = u_color*(1. - smoothstep(pi/2. - 0.1, pi/2. + 0.2, u_suntheta));
 
 	// Atmosphere and Sun
 	vec3 sky = textureCube(u_sky, r).rgb;
@@ -62,14 +87,7 @@ void main() {
 	float r0 = pow((n1 - n2)/(n1 + n2), 2.);
 	float fresnel = r0 + (1. - r0)*pow(1. - max(0., dot(normal, v)), 5.);
 
-	// Cresting foam
-	vec3 foam = u_sunlight/50.*max(0., dot(u_sundir, r))
-		*smoothstep(-0.05, 0.1, dot(u_sundir, vec3(0, 1, 0)))
-		*vec3(1);
-	float foaminess = smoothstep(1. - u_foaminess, 1., 1. - v_jacobian);
-
-	vec3 rgb = mix(u_color, sky + (foaminess > 0. ? vec3(0) : sun), fresnel)
-		+ foam*foaminess*(0.7 + fresnel);
+	vec3 rgb = mix(sea, sky + sun, fresnel);
 
 	rgb *= u_hdrscale;
 	float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));

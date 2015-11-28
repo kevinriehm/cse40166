@@ -1,3 +1,5 @@
+'use strict';
+
 // Generates a list of water cells, based on the camera's current position, by
 // recursively creating a quad tree. The descision to split a node is based on
 // the projected solid angle of that node compared again the threshold stored
