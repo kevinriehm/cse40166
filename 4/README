@@ -1,0 +1,16 @@
+How to Run
+----------
+
+Open the 'objViewer.html' file in the '4' directory.
+
+Explanation
+-----------
+
+The texture coordinates have to be flipped on the Y-axis in order to match
+with OpenGL's texture coordinate system; this is done when parsing the
+coordinates from the .obj file. Other than that, the texture coordinates
+follow the same code pathway as the vertex coordinates and vertex normals.
+
+Light information (position and colors) are passed into the vertex shader via
+uniforms.
+
