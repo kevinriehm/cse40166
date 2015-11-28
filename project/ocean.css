@@ -1,0 +1,18 @@
+* {
+	-moz-user-select: none;
+	-ms-user-select: none;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+body {
+	margin: 0;
+
+	overflow-x: hidden;
+}
+
+canvas {
+	width: 100vw;
+	height: 100vh;
+}
+

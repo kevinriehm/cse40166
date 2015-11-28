@@ -5,6 +5,8 @@
 
 		<title>Ocean simulation</title>
 
+		<link rel="stylesheet" type="text/css" href="ocean.css">
+
 		<script src="../Common/webgl-utils.js"></script>
 		<script src="../Common/MV.js"></script>
 		<script src="../Common/initShaders2.js"></script>
@@ -72,6 +74,11 @@
 
 		<br>
 
+		<input id="renderscale" type="range" min="0.01" max="1" step="0.01" value="1"/>
+		<label for="renderscale">Render size: <span id="renderscaledisplay"></span></label>
+
+		<br>
+
 		<input id="wireframe" type="checkbox"/>
 		<label for="wireframe">Wireframe</label>
 
@@ -117,13 +124,13 @@
 
 			<option value="{
 				&quot;daytime&quot;: 6.5,
-				&quot;wavesamplitude&quot;: 2.8,
-				&quot;wavesscale&quot;: 50,
-				&quot;choppiness&quot;: 1.5,
+				&quot;wavesamplitude&quot;: 0.4,
+				&quot;wavesscale&quot;: 80,
+				&quot;choppiness&quot;: 1,
 				&quot;foaminess&quot;: 1.2,
-				&quot;windx&quot;: 10,
-				&quot;windy&quot;: 10,
-				&quot;turbidity&quot;: 8.5,
+				&quot;windx&quot;: 20,
+				&quot;windy&quot;: 20,
+				&quot;turbidity&quot;: 10,
 				&quot;cloudiness&quot;: 0.65
 			}">Sunrise, Rough</option>
 
@@ -153,13 +160,13 @@
 
 			<option value="{
 				&quot;daytime&quot;: 12,
-				&quot;wavesamplitude&quot;: 2.8,
-				&quot;wavesscale&quot;: 50,
-				&quot;choppiness&quot;: 1.5,
+				&quot;wavesamplitude&quot;: 0.4,
+				&quot;wavesscale&quot;: 80,
+				&quot;choppiness&quot;: 1,
 				&quot;foaminess&quot;: 1.2,
-				&quot;windx&quot;: 10,
-				&quot;windy&quot;: 10,
-				&quot;turbidity&quot;: 8.5,
+				&quot;windx&quot;: 20,
+				&quot;windy&quot;: 20,
+				&quot;turbidity&quot;: 10,
 				&quot;cloudiness&quot;: 0.65
 			}">Noon, Rough</option>
 		</select>

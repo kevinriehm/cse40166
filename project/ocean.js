@@ -1,3 +1,5 @@
+'use strict';
+
 // Global state
 var gl;
 var glaniso;
@@ -23,6 +25,7 @@ var cells;
 // Configuration
 var choppiness; // Scaling factor for displacement vector
 var cloudiness; // Cloud noise threshold
+var cloudres; // Resolution of cloud texture
 var daytime; // Time of day (for Sun position)
 var foaminess; // Cresting texture threshold
 var fov; // Vertical field of view in degrees
@@ -31,6 +34,7 @@ var horizon; // Maximum distance of water cells
 var lodbias; // Limit factor of cell division
 var skyres; // Resolution of the skymap
 var turbidity; // Atomospheric haze
+var watercolor; // Base "ambient" color of water
 var waterdim; // Maximum resolution of a single water cell
 var wavesamplitude; // Height of waves
 var wavesdim; // Resolution of wave heightmap
@@ -43,17 +47,23 @@ var longitude;
 var calendarday; // Day of the year, 1-365
 var stdmeridian; // Standard meridian of the time zone
 
+var renderscale; // Fraction of actual canvas size at which to render
+
 var playing;
+var pausetime;
+var timeoffset;
 
 var prevtime;
 var frames;
 
 window.onload = function() {
+	cloudres = 1024;
 	fov = 80;
 	hdrscale = 0.2;
 	horizon = 1000;
 	lodbias = 1;
 	skyres = 32;
+	watercolor = vec3(0, 0.2, 0.3);
 	waterdim = 8;
 
 	latitude = 0;
@@ -67,7 +77,13 @@ window.onload = function() {
 	};
 
 	// Hook up the controls
+	canvas = document.getElementById('canvas');
+
 	document.getElementById('play').onclick = function() {
+		if(playing)
+			pausetime = performance.now();
+		else timeoffset += performance.now() - pausetime;
+
 		playing = !playing;
 
 		this.textContent = playing ? "Pause" : "Play";
@@ -144,6 +160,14 @@ window.onload = function() {
 		document.getElementById('anisotropydisplay').textContent = anisotropy;
 	};
 
+	document.getElementById('renderscale').oninput = function() {
+		renderscale = Number(this.value);
+		canvas.width = renderscale*canvas.clientWidth;
+		canvas.height = renderscale*canvas.clientHeight;
+		document.getElementById('renderscaledisplay').textContent = canvas.width + 'x' + canvas.height;
+	};
+	document.getElementById('renderscale').dispatchEvent(new Event('input'));
+
 	document.getElementById('wireframe').onchange = function() {
 		wireframe = this.checked;
 	};
@@ -175,9 +199,10 @@ window.onload = function() {
 		};
 	document.getElementById('preset').dispatchEvent(new Event('change'));
 
-	canvas = document.getElementById('canvas');
-
 	canvas.onmousedown = function(e) {
+		if(!playing)
+			return;
+
 		canvas.draglast = vec2(e.clientX, e.clientY);
 	};
 
@@ -201,8 +226,15 @@ window.onload = function() {
 	};
 
 	(window.onresize = function() {
-		canvas.width = document.documentElement.clientWidth - 2*canvas.offsetLeft;
-		canvas.height = document.documentElement.clientHeight - 2*canvas.offsetTop;
+		var width = canvas.clientWidth;
+		var height = canvas.clientHeight;
+
+		// This might add a vertical scollbar, thereby shrinking the page
+		if(height > canvas.height)
+			setTimeout(window.onresize, 0);
+
+//		canvas.width = width;
+//		canvas.height = height;
 	})();
 
 	// Set up WebGL
@@ -226,9 +258,11 @@ window.onload = function() {
 
 	// Compile shaders
 	programs = {
+		cloud: build_program('cloud.v.glsl', 'cloud.f.glsl'),
 		dome: build_program('dome.v.glsl', 'dome.f.glsl'),
 		fft: build_program('fft.v.glsl', 'fft.f.glsl'),
 		fft_final: build_program('fft_final.v.glsl', 'fft_final.f.glsl'),
+		fft_transpose: build_program('fft_transpose.v.glsl', 'fft_transpose.f.glsl'),
 		sky: build_program('sky.v.glsl', 'sky.f.glsl'),
 		spectrum: build_program('spectrum.v.glsl', 'spectrum.f.glsl'),
 		water: build_program('water.v.glsl', 'water.f.glsl')
@@ -236,6 +270,13 @@ window.onload = function() {
 
 	// Set up render targets
 	textures = {};
+
+	textures.cloud = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, textures.cloud);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, cloudres, cloudres, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+	gl.generateMipmap(gl.TEXTURE_2D);
 
 	textures.spectrum_height = gen_wave_texture();
 	textures.spectrum_slope = gen_wave_texture();
@@ -287,6 +328,8 @@ window.onload = function() {
 	gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
 	fbos = {};
+
+	fbos.cloud = gen_fbo(gl.TEXTURE_2D, textures.cloud);
 
 	fbos.spectrum_height = gen_fbo(gl.TEXTURE_2D, textures.spectrum_height);
 	fbos.spectrum_slope = gen_fbo(gl.TEXTURE_2D, textures.spectrum_slope);
@@ -393,6 +436,8 @@ window.onload = function() {
 		document.getElementById('anisotropy').dispatchEvent(new Event('input'));
 	}
 
+	render_cloud_map();
+
 	playing = false;
 	frames = 0;
 
@@ -430,8 +475,9 @@ function build_program(vshader, fshader) {
 	return program;
 }
 
-// Calculates the position of the Sun in the sky, based on the time of day
-function calc_sun_position() {
+// Calculates the position and color of the Sun in the sky, based on the time of day
+function calc_sun() {
+	// Sun position
 	var declination = 0.4093*Math.sin(2*Math.PI,(calendarday - 81)/368);
 	var suntime = daytime + 0.170*Math.sin(4*Math.PI*(calendarday - 80)/373)
 		- 0.129*Math.sin(2*Math.PI*(calendarday - 8)/355)
@@ -445,7 +491,28 @@ function calc_sun_position() {
 
 	var dir = vec3(Math.cos(phi), Math.cos(theta), -Math.sin(theta)*Math.sin(phi));
 
-	return {dir: dir, theta: theta, phi: phi};
+	// Sunlight
+	var basecolor = vec3(2024.04, 2550.38, 3005.75);
+	var lambda = vec3(0.700, 0.550, 0.450);
+	var k_o = vec3(0.023, 0.085, 0.009);
+	var k_w = vec3(0.024, 0, 0);
+
+	var b = 0.04608*turbidity - 0.04586;
+	var m = 1/(Math.cos(0.6*theta) + 0.15*Math.pow(93.885 - 0.6*theta/Math.PI*180, -1.253));
+
+	function pow(v, e) {
+		return v.map(function(x) { return Math.pow(x, e); });
+	}
+
+	var t0 = scale(-0.008735, pow(lambda, -4.08*m));
+	var t1 = scale(-b, pow(lambda, -1.3*m));
+	var t2 = scale(-0.35*m, k_o);
+	var t3 = mult(scale(-0.4770*m, k_w), pow(add(vec3(1, 1, 1), scale(40.14*m, k_w)), -0.45));
+	var t = add(add(t0, t1), add(t2, t3)).map(Math.exp);
+
+	var color = mult(t, basecolor);
+
+	return {dir: dir, theta: theta, phi: phi, color: color};
 }
 
 // Creates a framebuffer and attaches a texture to it
@@ -502,6 +569,23 @@ function resize_wave_textures() {
 	});
 
 	gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+// Update the cloud texture
+function render_cloud_map() {
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.cloud);
+	gl.viewport(0, 0, cloudres, cloudres);
+
+	gl.useProgram(programs.cloud);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
+	gl.enableVertexAttribArray(programs.spectrum.a_position);
+	gl.vertexAttribPointer(programs.spectrum.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
+
+	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
+	gl.bindTexture(gl.TEXTURE_2D, textures.cloud);
+	gl.generateMipmap(gl.TEXTURE_2D);
 }
 
 // Update the wave spectrum texture
@@ -569,13 +653,13 @@ function render_wave_maps() {
 	gl.enableVertexAttribArray(programs.fft.a_position);
 	gl.vertexAttribPointer(programs.fft.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
 
-	gl.uniform1i(programs.fft.u_horizontal, 1);
+	gl.uniform2f(programs.fft.u_dim, wavesdim, wavesdim);
 
 	for(var i = 0; i < niter; i++) {
 		var texin = i&1;
 
-		gl.uniform2f(programs.fft.u_dim, wavesdim, wavesdim);
-		gl.uniform1f(programs.fft.u_stage, i);
+		gl.uniform1f(programs.fft.u_bit, 1 << i);
+		gl.uniform1f(programs.fft.u_bit2, 1 << i + 1);
 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[texin^1]);
 		gl.uniform1i(programs.fft.u_in, 0 + texin);
@@ -590,19 +674,44 @@ function render_wave_maps() {
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 	}
 
+	// Transpose
+	gl.useProgram(programs.fft_transpose);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
+	gl.enableVertexAttribArray(programs.fft_transpose.a_position);
+	gl.vertexAttribPointer(programs.fft_transpose.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
+
+	gl.uniform2f(programs.fft_transpose.u_dim, wavesdim, wavesdim);
+
+	var texin = niter&1;
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[texin^1]);
+	gl.uniform1i(programs.fft_transpose.u_in, 0 + texin);
+	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_slope[texin^1]);
+	gl.uniform1i(programs.fft_transpose.u_in, 2 + texin);
+	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_disp[texin^1]);
+	gl.uniform1i(programs.fft_transpose.u_in, 4 + texin);
+	gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
+
 	// Vertical FFT
+	gl.useProgram(programs.fft);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, quad.buffer);
 	gl.enableVertexAttribArray(programs.fft.a_position);
 	gl.vertexAttribPointer(programs.fft.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
 
-	gl.uniform1i(programs.fft.u_horizontal, 0);
+	gl.uniform2f(programs.fft.u_dim, wavesdim, wavesdim);
+	gl.uniform2f(programs.fft.u_increment, 0, 1/wavesdim);
 
 	for(var i = 0; i < niter; i++) {
-		var texin = (niter + i)&1;
+		var texin = (niter + i + 1)&1;
 
-		gl.uniform2f(programs.fft.u_dim, wavesdim, wavesdim);
-		gl.uniform1f(programs.fft.u_stage, i);
+		gl.uniform1f(programs.fft.u_bit, 1 << i);
+		gl.uniform1f(programs.fft.u_bit2, 1 << i + 1);
 
 		gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.fft_height[texin^1]);
 		gl.uniform1i(programs.fft.u_in, 0 + texin);
@@ -617,7 +726,7 @@ function render_wave_maps() {
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 	}
 
-	// Finalize FFT (sign change)
+	// Finalize FFT (sign change and transpose)
 	gl.useProgram(programs.fft_final);
 
 	gl.disable(gl.DEPTH_TEST);
@@ -626,9 +735,9 @@ function render_wave_maps() {
 	gl.enableVertexAttribArray(programs.fft_final.a_position);
 	gl.vertexAttribPointer(programs.fft_final.a_position, 2, gl.FLOAT, gl.FALSE, 0, 0);
 
-	gl.uniform1i(programs.fft_final.u_in[0], 0);
-	gl.uniform1i(programs.fft_final.u_in[1], 2);
-	gl.uniform1i(programs.fft_final.u_in[2], 4);
+	gl.uniform1i(programs.fft_final.u_in[0], 1);
+	gl.uniform1i(programs.fft_final.u_in[1], 3);
+	gl.uniform1i(programs.fft_final.u_in[2], 5);
 	gl.uniform2f(programs.fft_final.u_dim, wavesdim, wavesdim);
 
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.waves[0]);
@@ -649,8 +758,6 @@ function render_wave_maps() {
 
 // Update the atmosphere cube map (not including the Sun or the clouds for resolution reasons)
 function render_sky_map(suninfo) {
-	// Rendering to sky cubemap
-
 	gl.viewport(0, 0, skyres, skyres);
 
 	gl.useProgram(programs.sky);
@@ -678,52 +785,20 @@ function render_scene(suninfo, time) {
 	gl.viewport(0, 0, canvas.width, canvas.height);
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-	// Sky dome
-	gl.useProgram(programs.dome);
-
-	gl.disable(gl.DEPTH_TEST);
-
-	var camrot = mat4();
-	camrot = mult(rotateZ(-camera.rot[2]), camrot);
-	camrot = mult(rotateY(-camera.rot[1]), camrot);
-	camrot = mult(rotateX(-camera.rot[0]), camrot);
-	camrot = mult(perspective(fov, canvas.width/canvas.height, 0.1, horizon), camrot);
-
-	gl.bindBuffer(gl.ARRAY_BUFFER, dome.points.buffer);
-	gl.enableVertexAttribArray(programs.dome.a_position);
-	gl.vertexAttribPointer(programs.dome.a_position, 3, gl.FLOAT, gl.FALSE, 0, 0);
-
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, dome.indices.buffer);
-
-	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_CUBE_MAP, textures.sky);
-
-	gl.uniform1i(programs.dome.u_sky, 0);
-
-	gl.uniformMatrix4fv(programs.dome.u_camera, gl.FALSE, flatten(camrot));
-	gl.uniform3fv(programs.dome.u_sundir, suninfo.dir);
-	gl.uniform1f(programs.dome.u_suntheta, suninfo.theta);
-	gl.uniform1f(programs.dome.u_time, time);
-	gl.uniform1f(programs.dome.u_turbidity, turbidity);
-	gl.uniform2fv(programs.dome.u_wind, wind);
-
-	gl.uniform1f(programs.dome.u_cloudiness, cloudiness);
-	gl.uniform1f(programs.dome.u_hdrscale, hdrscale);
-
-	gl.drawElements(gl.TRIANGLE_STRIP, dome.indices.length, gl.UNSIGNED_BYTE, 0);
-
 	// Water grid
 	gl.useProgram(programs.water);
 
 	gl.enable(gl.CULL_FACE);
 	gl.enable(gl.DEPTH_TEST);
 
+	gl.depthMask(true);
+
 	var cam = mat4();
 	cam = mult(translate(-camera.xyz[0], -camera.xyz[1], -camera.xyz[2]), cam);
 	cam = mult(rotateZ(-camera.rot[2]), cam);
 	cam = mult(rotateY(-camera.rot[1]), cam);
 	cam = mult(rotateX(-camera.rot[0]), cam);
-	cam = mult(perspective(fov, canvas.width/canvas.height, 0.1, horizon), cam);
+	cam = mult(perspective(fov, canvas.clientWidth/canvas.clientHeight, 0.1, horizon), cam);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, water.points.buffer);
 	gl.enableVertexAttribArray(programs.water.a_position);
@@ -740,9 +815,13 @@ function render_scene(suninfo, time) {
 	gl.activeTexture(gl.TEXTURE2);
 	gl.bindTexture(gl.TEXTURE_CUBE_MAP, textures.sky);
 
+	gl.activeTexture(gl.TEXTURE3);
+	gl.bindTexture(gl.TEXTURE_2D, textures.cloud);
+
 	gl.uniform1i(programs.water.u_waves[0], 0);
 	gl.uniform1i(programs.water.u_waves[1], 1);
 	gl.uniform1i(programs.water.u_sky, 2);
+	gl.uniform1i(programs.water.u_cloud, 3);
 
 	gl.uniformMatrix4fv(programs.water.u_camera, gl.FALSE, flatten(cam));
 
@@ -751,9 +830,10 @@ function render_scene(suninfo, time) {
 	gl.uniform1f(programs.water.u_foaminess, foaminess);
 	gl.uniform1f(programs.water.u_scale, wavesscale);
 
-	gl.uniform3f(programs.water.u_color, 0, 0.2, 0.3);
+	gl.uniform3fv(programs.water.u_color, watercolor);
 
 	gl.uniform3fv(programs.water.u_sundir, suninfo.dir);
+	gl.uniform3fv(programs.water.u_sunlight, suninfo.color);
 	gl.uniform1f(programs.water.u_suntheta, suninfo.theta);
 	gl.uniform1f(programs.water.u_turbidity, turbidity);
 
@@ -777,10 +857,59 @@ function render_scene(suninfo, time) {
 			water.indices.length, gl.UNSIGNED_SHORT, 0);
 	});
 
+	// Sky dome
+	gl.useProgram(programs.dome);
+
 	gl.disable(gl.CULL_FACE);
+
+	gl.depthMask(false);
+
+	var camrot = mat4();
+	camrot = mult(rotateZ(-camera.rot[2]), camrot);
+	camrot = mult(rotateY(-camera.rot[1]), camrot);
+	camrot = mult(rotateX(-camera.rot[0]), camrot);
+	camrot = mult(perspective(fov, canvas.clientWidth/canvas.clientHeight, 0.1, 2*horizon), camrot);
+
+	gl.bindBuffer(gl.ARRAY_BUFFER, dome.points.buffer);
+	gl.enableVertexAttribArray(programs.dome.a_position);
+	gl.vertexAttribPointer(programs.dome.a_position, 3, gl.FLOAT, gl.FALSE, 0, 0);
+
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, dome.indices.buffer);
+
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_CUBE_MAP, textures.sky);
+
+	gl.activeTexture(gl.TEXTURE1);
+	gl.bindTexture(gl.TEXTURE_2D, textures.cloud);
+
+	gl.uniform1i(programs.dome.u_sky, 0);
+	gl.uniform1i(programs.dome.u_cloud, 1);
+
+	gl.uniformMatrix4fv(programs.dome.u_camera, gl.FALSE, flatten(camrot));
+
+	gl.uniform1f(programs.dome.u_horizon, horizon);
+
+	gl.uniform3fv(programs.dome.u_sundir, suninfo.dir);
+	gl.uniform3fv(programs.dome.u_sunlight, suninfo.color);
+	gl.uniform1f(programs.dome.u_suntheta, suninfo.theta);
+	gl.uniform1f(programs.dome.u_time, time);
+	gl.uniform1f(programs.dome.u_turbidity, turbidity);
+	gl.uniform2fv(programs.dome.u_wind, wind);
+
+	gl.uniform1f(programs.dome.u_cloudiness, cloudiness);
+	gl.uniform1f(programs.dome.u_hdrscale, hdrscale);
+
+	gl.drawElements(gl.TRIANGLE_STRIP, dome.indices.length, gl.UNSIGNED_BYTE, 0);
 }
 
 function render(now) {
+	if(!pausetime)
+		pausetime = now;
+
+	if(!timeoffset)
+		timeoffset = now;
+
+	now -= timeoffset;
 	var nowsec = now/1000;
 
 	// FPS counter
@@ -795,7 +924,7 @@ function render(now) {
 	frames++;
 
 	// Update Sun
-	var suninfo = calc_sun_position();
+	var suninfo = calc_sun();
 
 	// Do all the rendering
 	render_spectrum(nowsec);

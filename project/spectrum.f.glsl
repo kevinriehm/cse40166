@@ -83,7 +83,7 @@ float phillips(vec2 k) {
 
 	return u_amplitude
 		*exp(-1./sqr(lk*L) - sqr(lk*L*small))
-		*sqr(dot(k/lk, u_wind/lw)/sqr(lk));
+		*sqr(sqr(dot(k/lk, u_wind/lw)/lk));
 }
 
 vec2 h0(vec2 k) {

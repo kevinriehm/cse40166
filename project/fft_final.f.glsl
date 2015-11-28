@@ -9,9 +9,9 @@ uniform vec2 u_dim;
 uniform int u_output;
 
 void main() {
-	vec4 raw0 = texture2D(u_in[0], gl_FragCoord.xy/u_dim);
-	vec4 raw1 = texture2D(u_in[1], gl_FragCoord.xy/u_dim);
-	vec4 raw2 = texture2D(u_in[2], gl_FragCoord.xy/u_dim);
+	vec4 raw0 = texture2D(u_in[0], gl_FragCoord.yx/u_dim);
+	vec4 raw1 = texture2D(u_in[1], gl_FragCoord.yx/u_dim);
+	vec4 raw2 = texture2D(u_in[2], gl_FragCoord.yx/u_dim);
 
 	float sign = 1. - 2.*mod(gl_FragCoord.x + gl_FragCoord.y, 2.);
 

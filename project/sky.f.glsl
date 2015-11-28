@@ -92,6 +92,8 @@ void main() {
 	const vec2 sunset = vec2(pi/2. + 0.2, pi/2. + 0.5);
 	rgb = (1. - smoothstep(sunset[0], sunset[1], u_suntheta))*rgb;
 
+	rgb = max(rgb, 0.);
+
 	gl_FragColor = vec4(rgb, 0);
 }
 
