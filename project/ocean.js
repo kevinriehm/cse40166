@@ -56,7 +56,6 @@ var pausetime;
 var timeoffset;
 
 var prevtime;
-var prevfps;
 var frames;
 
 window.onload = function() {
@@ -624,34 +623,6 @@ function render_scene(suninfo, time) {
 	gl.drawElements(gl.TRIANGLE_STRIP, dome.indices.length, gl.UNSIGNED_BYTE, 0);
 }
 
-// Basically cheat by automatically adjusting the resolution when the FPS drops
-function adjust_resolution(prevfps) {
-	var min = 1e6, max = 0, avg = 0;
-
-	prevfps.forEach(function(x) {
-		min = Math.min(min, x);
-		max = Math.max(max, x);
-		avg += x;
-	});
-
-	avg /= prevfps.length;
-
-	if(max - min > 5)
-		return;
-
-	var renderscale = document.getElementById('renderscale');
-
-	if(avg < 30)
-		renderscale.value = Number(renderscale.value) - 0.05;
-	else if(avg > 50)
-		renderscale.value = Number(renderscale.value) + 0.05;
-
-	// Let's not be silly
-	renderscale.value = Math.max(0.2, renderscale.value);
-
-	renderscale.dispatchEvent(new Event('input'));
-}
-
 function render(now) {
 	if(!pausetime)
 		pausetime = now;
@@ -663,20 +634,12 @@ function render(now) {
 	var nowsec = now/1000;
 
 	// FPS counter
-	if(!prevfps)
-		prevfps = [];
-
 	if(!prevtime)
 		prevtime = now;
 
 	if(now - prevtime >= 1000) {
 		prevtime += Math.floor((now - prevtime)/1000)*1000;
 		console.log(frames);
-		prevfps.push(frames);
-		if(prevfps.length >= 5) {
-			adjust_resolution(prevfps);
-			prevfps = [];
-		}
 		frames = 0;
 	}
 	frames++;
