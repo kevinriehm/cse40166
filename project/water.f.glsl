@@ -30,17 +30,6 @@ varying vec3 v_xyz;
 
 const float pi = 3.14159265;
 
-float rand(vec2 seed) {
-	return fract(43758.5453*sin(dot(seed, vec2(12.9898, 78.253))));
-}
-
-vec2 gauss2(vec2 seed) {
-	float u0 = rand(seed.xy);
-	float u1 = rand(seed.yx);
-	float x = sqrt(-2.*log(clamp(u0, 0.001, 1.)));
-	return x*vec2(cos(2.*pi*u1), sin(2.*pi*u1));
-}
-
 float sun_power(vec3 dir) {
 	return exp(2048.*(dot(u_sundir, dir) - 1.));
 }
@@ -63,8 +52,9 @@ void main() {
 	vec4 ripples0 = texture2D(u_ripples[0], 4.*v_uv[0] + 0.005*u_time*(u_wind + vec2(1, 0)));
 	vec4 ripples1 = texture2D(u_ripples[1], 4.*v_uv[1] - 0.01*u_time*(u_wind + vec2(0, 1)));
 
-	vec3 ns0 = normalize(cross(normal, vec3(1, 0, 0)));
-	vec3 ns1 = normalize(cross(normal, -ns0));
+	float ripplescale = smoothstep(0., 4., length(u_wind));
+	vec3 ns0 = ripplescale*normalize(cross(normal, vec3(1, 0, 0)));
+	vec3 ns1 = ripplescale*normalize(cross(normal, -ns0));
 	normal = normalize(mat3(ns0, ns1, normal)*(2.*(ripples0.rgb + ripples1.rgb) - 2.));
 
 	vec3 v = normalize(u_cameraxyz - v_xyz);
