@@ -64,7 +64,7 @@ window.onload = function() {
 	horizon = 5000;
 	lodbias = 1;
 	skyres = 32;
-	watercolor = vec3(0.2, 1.2, 1.6);
+	watercolor = vec3(0.3, 0.7, 1.4);
 	waterdim = 8;
 	wavesscalescale = Math.sqrt(13);
 
