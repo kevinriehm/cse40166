@@ -60,7 +60,6 @@ var frames;
 
 window.onload = function() {
 	cloudres = 1024;
-	fov = 80;
 	hdrscale = 0.2;
 	horizon = 1000;
 	lodbias = 1;
@@ -163,6 +162,12 @@ window.onload = function() {
 
 		document.getElementById('anisotropydisplay').textContent = anisotropy;
 	};
+
+	document.getElementById('fov').oninput = function() {
+		fov = Number(this.value);
+		document.getElementById('fovdisplay').textContent = this.value;
+	};
+	document.getElementById('fov').dispatchEvent(new Event('input'));
 
 	document.getElementById('renderscale').oninput = function() {
 		renderscale = Number(this.value);
@@ -639,7 +644,7 @@ function render(now) {
 
 	if(now - prevtime >= 1000) {
 		prevtime += Math.floor((now - prevtime)/1000)*1000;
-		console.log(frames);
+		document.getElementById('fpsdisplay').textContent = frames;
 		frames = 0;
 	}
 	frames++;

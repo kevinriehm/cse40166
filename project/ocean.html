@@ -20,158 +20,168 @@
 	<body>
 		<canvas id="canvas" width="512" height="512">HTML canvas support is required.</canvas>
 
-		<br>
+		<div id="controls">
+			<button id="play">Play</button>
+			<button><label for="controlstoggle">Toggle Controls</label></button>
 
-		<button id="play">Play</button>
+			<label id="fps">FPS: <span id="fpsdisplay"></span></label>
 
-		<br>
+			<input id="controlstoggle" type="checkbox">
 
-		<input id="daytime" type="range" min="0" max="24" step="0.05"/>
-		<label for="daytime">Time of day: <span id="daytimedisplay"></span></label>
+			<hr>
 
-		<br>
+			<input id="wireframe" type="checkbox"/>
+			<label for="wireframe">Wireframe</label>
 
-		<input id="wavesamplitude" type="range" min="0" max="10" step="0.1"/>
-		<label for="wavesamplitude">Wave amplitude: <span id="wavesamplitudedisplay"></span></label>
+			<br>
 
-		<br>
+			<input id="daytime" type="range" min="0" max="24" step="0.05"/>
+			<label for="daytime">Time of day: <span id="daytimedisplay"></span></label>
 
-		<input id="wavesscale" type="range" min="1" max="100" step="1"/>
-		<label for="wavesscale">Wave scale: <span id="wavesscaledisplay"></span></label>
+			<br>
 
-		<br>
+			<input id="wavesamplitude" type="range" min="0" max="10" step="0.1"/>
+			<label for="wavesamplitude">Wave amplitude: <span id="wavesamplitudedisplay"></span></label>
 
-		<input id="choppiness" type="range" min="0" max="5" step="0.1"/>
-		<label for="choppiness">Choppiness: <span id="choppinessdisplay"></span></label>
+			<br>
 
-		<br>
+			<input id="wavesscale" type="range" min="1" max="100" step="1"/>
+			<label for="wavesscale">Wave scale: <span id="wavesscaledisplay"></span></label>
 
-		<input id="foaminess" type="range" min="0" max="2" step="0.1"/>
-		<label for="foaminess">Foaminess: <span id="foaminessdisplay"></span></label>
+			<br>
 
-		<br>
+			<input id="choppiness" type="range" min="0" max="5" step="0.1"/>
+			<label for="choppiness">Choppiness: <span id="choppinessdisplay"></span></label>
 
-		<input id="windx" type="range" min="-20" max="20" step="0.1"/>
-		<label for="windx">Wind X: <span id="windxdisplay"></span></label>
+			<br>
 
-		<br>
+			<input id="foaminess" type="range" min="0" max="2" step="0.1"/>
+			<label for="foaminess">Foaminess: <span id="foaminessdisplay"></span></label>
 
-		<input id="windy" type="range" min="-20" max="20" step="0.1"/>
-		<label for="windy">Wind Y: <span id="windydisplay"></span></label>
+			<br>
 
-		<br>
+			<input id="windx" type="range" min="-20" max="20" step="0.1"/>
+			<label for="windx">Wind X: <span id="windxdisplay"></span></label>
 
-		<input id="turbidity" type="range" min="2" max="10" step="0.1"/>
-		<label for="turbidity">Turbidity: <span id="turbiditydisplay"></span></label>
+			<br>
 
-		<br>
+			<input id="windy" type="range" min="-20" max="20" step="0.1"/>
+			<label for="windy">Wind Y: <span id="windydisplay"></span></label>
 
-		<input id="cloudiness" type="range" min="0" max="1" step="0.05"/>
-		<label for="cloudiness">Cloudiness: <span id="cloudinessdisplay"></span></label>
+			<br>
 
-		<br>
+			<input id="turbidity" type="range" min="2" max="10" step="0.1"/>
+			<label for="turbidity">Turbidity: <span id="turbiditydisplay"></span></label>
 
-		<input id="anisotropy" type="range" min="0" max="0" step="1" value="0"/>
-		<label for="anisotropy">Anisotropic filtering: <span id="anisotropydisplay"></span></label>
+			<br>
 
-		<br>
+			<input id="cloudiness" type="range" min="0" max="1" step="0.05"/>
+			<label for="cloudiness">Cloudiness: <span id="cloudinessdisplay"></span></label>
 
-		<input id="renderscale" type="range" min="0.01" max="1" step="0.01" value="1"/>
-		<label for="renderscale">Render size: <span id="renderscaledisplay"></span></label>
+			<br>
 
-		<br>
+			<input id="anisotropy" type="range" min="0" max="0" step="1" value="0"/>
+			<label for="anisotropy">Anisotropic filtering: <span id="anisotropydisplay"></span></label>
 
-		<input id="wireframe" type="checkbox"/>
-		<label for="wireframe">Wireframe</label>
+			<br>
 
-		<br>
+			<input id="fov" type="range" min="15" max="120" step="1" value="75"/>
+			<label for="fov">Field of view: <span id="fovdisplay"></span></label>
 
-		<label for="wavesdim">Wave resolution:</label>
-		<select id="wavesdim">
-			<option value="1024">1024x1024</option>
-			<option value="512">512x512</option>
-			<option value="256">256x256</option>
-			<option value="128">128x128</option>
-			<option value="64" selected>64x64</option>
-			<option value="32">32x32</option>
-		</select>
+			<br>
 
-		<br>
+			<input id="renderscale" type="range" min="0.01" max="1" step="0.01" value="1"/>
+			<label for="renderscale">Render size: <span id="renderscaledisplay"></span></label>
 
-		<label for="preset">Preset:</label>
-		<select id="preset">
-			<option value="{
-				&quot;daytime&quot;: 6.5,
-				&quot;wavesamplitude&quot;: 0.2,
-				&quot;wavesscale&quot;: 40,
-				&quot;choppiness&quot;: 0.7,
-				&quot;foaminess&quot;: 0.5,
-				&quot;windx&quot;: 5,
-				&quot;windy&quot;: 0,
-				&quot;turbidity&quot;: 4,
-				&quot;cloudiness&quot;: 0.55
-			}">Sunrise, Calm</option>
+			<br>
 
-			<option value="{
-				&quot;daytime&quot;: 6.5,
-				&quot;wavesamplitude&quot;: 1.1,
-				&quot;wavesscale&quot;: 40,
-				&quot;choppiness&quot;: 1.7,
-				&quot;foaminess&quot;: 0.5,
-				&quot;windx&quot;: 8,
-				&quot;windy&quot;: 0,
-				&quot;turbidity&quot;: 6,
-				&quot;cloudiness&quot;: 0.55
-			}">Sunrise, Medium</option>
+			<label for="wavesdim">Wave resolution:</label>
+			<select id="wavesdim">
+				<option value="1024">1024x1024</option>
+				<option value="512">512x512</option>
+				<option value="256">256x256</option>
+				<option value="128">128x128</option>
+				<option value="64" selected>64x64</option>
+				<option value="32">32x32</option>
+			</select>
 
-			<option value="{
-				&quot;daytime&quot;: 6.5,
-				&quot;wavesamplitude&quot;: 0.4,
-				&quot;wavesscale&quot;: 80,
-				&quot;choppiness&quot;: 1,
-				&quot;foaminess&quot;: 1.2,
-				&quot;windx&quot;: 20,
-				&quot;windy&quot;: 20,
-				&quot;turbidity&quot;: 10,
-				&quot;cloudiness&quot;: 0.65
-			}">Sunrise, Rough</option>
+			<br>
 
-			<option value="{
-				&quot;daytime&quot;: 12,
-				&quot;wavesamplitude&quot;: 0.2,
-				&quot;wavesscale&quot;: 40,
-				&quot;choppiness&quot;: 0.7,
-				&quot;foaminess&quot;: 0.5,
-				&quot;windx&quot;: 5,
-				&quot;windy&quot;: 0,
-				&quot;turbidity&quot;: 4,
-				&quot;cloudiness&quot;: 0.55
-			}">Noon, Calm</option>
+			<label for="preset">Preset:</label>
+			<select id="preset">
+				<option value="{
+					&quot;daytime&quot;: 6.5,
+					&quot;wavesamplitude&quot;: 0.2,
+					&quot;wavesscale&quot;: 40,
+					&quot;choppiness&quot;: 0.7,
+					&quot;foaminess&quot;: 0.5,
+					&quot;windx&quot;: 5,
+					&quot;windy&quot;: 0,
+					&quot;turbidity&quot;: 4,
+					&quot;cloudiness&quot;: 0.55
+				}">Sunrise, Calm</option>
 
-			<option value="{
-				&quot;daytime&quot;: 12,
-				&quot;wavesamplitude&quot;: 1.1,
-				&quot;wavesscale&quot;: 40,
-				&quot;choppiness&quot;: 1.7,
-				&quot;foaminess&quot;: 0.5,
-				&quot;windx&quot;: 8,
-				&quot;windy&quot;: 0,
-				&quot;turbidity&quot;: 6,
-				&quot;cloudiness&quot;: 0.55
-			}" selected>Noon, Medium</option>
+				<option value="{
+					&quot;daytime&quot;: 6.5,
+					&quot;wavesamplitude&quot;: 1.1,
+					&quot;wavesscale&quot;: 40,
+					&quot;choppiness&quot;: 1.7,
+					&quot;foaminess&quot;: 0.5,
+					&quot;windx&quot;: 8,
+					&quot;windy&quot;: 0,
+					&quot;turbidity&quot;: 6,
+					&quot;cloudiness&quot;: 0.55
+				}">Sunrise, Medium</option>
 
-			<option value="{
-				&quot;daytime&quot;: 12,
-				&quot;wavesamplitude&quot;: 0.4,
-				&quot;wavesscale&quot;: 80,
-				&quot;choppiness&quot;: 1,
-				&quot;foaminess&quot;: 1.2,
-				&quot;windx&quot;: 20,
-				&quot;windy&quot;: 20,
-				&quot;turbidity&quot;: 10,
-				&quot;cloudiness&quot;: 0.65
-			}">Noon, Rough</option>
-		</select>
+				<option value="{
+					&quot;daytime&quot;: 6.5,
+					&quot;wavesamplitude&quot;: 0.4,
+					&quot;wavesscale&quot;: 80,
+					&quot;choppiness&quot;: 1,
+					&quot;foaminess&quot;: 1.2,
+					&quot;windx&quot;: 20,
+					&quot;windy&quot;: 20,
+					&quot;turbidity&quot;: 10,
+					&quot;cloudiness&quot;: 0.65
+				}">Sunrise, Rough</option>
+
+				<option value="{
+					&quot;daytime&quot;: 12,
+					&quot;wavesamplitude&quot;: 0.2,
+					&quot;wavesscale&quot;: 40,
+					&quot;choppiness&quot;: 0.7,
+					&quot;foaminess&quot;: 0.5,
+					&quot;windx&quot;: 5,
+					&quot;windy&quot;: 0,
+					&quot;turbidity&quot;: 4,
+					&quot;cloudiness&quot;: 0.55
+				}">Noon, Calm</option>
+
+				<option value="{
+					&quot;daytime&quot;: 12,
+					&quot;wavesamplitude&quot;: 1.1,
+					&quot;wavesscale&quot;: 40,
+					&quot;choppiness&quot;: 1.7,
+					&quot;foaminess&quot;: 0.5,
+					&quot;windx&quot;: 8,
+					&quot;windy&quot;: 0,
+					&quot;turbidity&quot;: 6,
+					&quot;cloudiness&quot;: 0.55
+				}" selected>Noon, Medium</option>
+
+				<option value="{
+					&quot;daytime&quot;: 12,
+					&quot;wavesamplitude&quot;: 0.4,
+					&quot;wavesscale&quot;: 80,
+					&quot;choppiness&quot;: 1,
+					&quot;foaminess&quot;: 1.2,
+					&quot;windx&quot;: 20,
+					&quot;windy&quot;: 20,
+					&quot;turbidity&quot;: 10,
+					&quot;cloudiness&quot;: 0.65
+				}">Noon, Rough</option>
+			</select>
+		</div>
 	</body>
 </html>
 

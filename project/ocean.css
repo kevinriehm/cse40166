@@ -5,14 +5,45 @@
 	user-select: none;
 }
 
+html, body {
+	width: 100%;
+	height: 100%;
+}
+
 body {
 	margin: 0;
 
-	overflow-x: hidden;
+	overflow: hidden;
 }
 
-canvas {
-	width: 100vw;
-	height: 100vh;
+#canvas {
+	width: 100%;
+	height: 100%;
+}
+
+#controls {
+	position: fixed;
+	left: 0;
+	top: 0;
+
+	padding: 10px;
+	border-style: solid;
+	border-width: 0 1px 1px 0;
+
+	background: rgba(255, 255, 255, 0.6);
+}
+
+#controlstoggle {
+	display: none;
+}
+
+#controlstoggle:checked ~ * {
+	display: none;
+}
+
+#fps {
+	float: right;
+
+	margin-left: 10px;
 }
 
