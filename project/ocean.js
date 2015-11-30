@@ -61,7 +61,7 @@ var frames;
 window.onload = function() {
 	cloudres = 1024;
 	hdrscale = 0.2;
-	horizon = 1000;
+	horizon = 5000;
 	lodbias = 1;
 	skyres = 32;
 	watercolor = vec3(0.2, 1.2, 1.6);
