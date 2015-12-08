@@ -161,6 +161,15 @@ window.onload = function() {
 			fft.set_anisotropy(anisotropy);
 		});
 
+		[
+			textures.cloud,
+			textures.ripples[0],
+			textures.ripples[1]
+		].forEach(function(tex) {
+			gl.bindTexture(gl.TEXTURE_2D, tex);
+			gl.texParameteri(gl.TEXTURE_2D, glaniso.TEXTURE_MAX_ANISOTROPY_EXT, anisotropy);
+		});
+
 		document.getElementById('anisotropydisplay').textContent = anisotropy;
 	};
 
