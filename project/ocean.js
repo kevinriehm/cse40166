@@ -497,7 +497,7 @@ function render_sky_map(suninfo) {
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 	}
 }
-
+var lookdir;
 // Actually output everything (atmosphere, waves, Sun, and clouds) to the canvas
 function render_scene(suninfo, time) {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -518,6 +518,18 @@ function render_scene(suninfo, time) {
 	cam = mult(rotateY(-camera.rot[1]), cam);
 	cam = mult(rotateX(-camera.rot[0]), cam);
 	cam = mult(perspective(fov, canvas.clientWidth/canvas.clientHeight, 0.1, horizon), cam);
+
+	var invrot = mat4();
+	invrot = mult(rotateX(camera.rot[0]), invrot);
+	invrot = mult(rotateY(camera.rot[1]), invrot);
+	invrot = mult(rotateZ(camera.rot[2]), invrot);
+
+	lookdir = vec4(0, 0, -1, 0);
+	lookdir = vec3(
+		dot(invrot[0], lookdir),
+		dot(invrot[1], lookdir),
+		dot(invrot[2], lookdir)
+	);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, water.points.buffer);
 	gl.enableVertexAttribArray(programs.water.a_position);
@@ -580,6 +592,11 @@ function render_scene(suninfo, time) {
 	gl.uniform1f(programs.water.u_cloudiness, cloudiness);
 
 	cells.forEach(function(cell) {
+		var center = vec3(cell.x + cell.w/2, 0, cell.z + cell.h/2);
+
+		if(dot(lookdir, normalize(subtract(center, camera.xyz))) < 0)
+			return;
+
 		gl.uniformMatrix4fv(programs.water.u_modelview, gl.FALSE, flatten(cell.mv));
 
 		gl.uniform1fv(programs.water.u_edgesize[0], [
