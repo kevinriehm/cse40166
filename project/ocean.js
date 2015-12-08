@@ -28,11 +28,11 @@ var choppiness; // Scaling factor for displacement vector
 var cloudiness; // Cloud noise threshold
 var cloudres; // Resolution of cloud texture
 var daytime; // Time of day (for Sun position)
-var foaminess; // Cresting texture threshold
 var fov; // Vertical field of view in degrees
 var hdrscale; // Raw pixel scaling factor before x/(1 + x) compression
 var horizon; // Maximum distance of water cells
 var lodbias; // Limit factor of cell division
+var rippliness; // Ripple normal map intensity
 var skyres; // Resolution of the skymap
 var turbidity; // Atomospheric haze
 var watercolor; // Base "ambient" color of water
@@ -123,10 +123,11 @@ window.onload = function() {
 		document.getElementById('choppinessdisplay').textContent = this.value;
 	};
 
-	document.getElementById('foaminess').oninput = function() {
-		foaminess = Number(this.value);
-		document.getElementById('foaminessdisplay').textContent = this.value;
+	document.getElementById('rippliness').oninput = function() {
+		rippliness = Number(this.value);
+		document.getElementById('ripplinessdisplay').textContent = this.value;
 	};
+	document.getElementById('rippliness').dispatchEvent(new Event('input'));
 
 	document.getElementById('windx').oninput = function() {
 		wind = wind || vec2(0, 0);
@@ -552,7 +553,7 @@ function render_scene(suninfo, time) {
 
 	gl.uniform3fv(programs.water.u_cameraxyz, camera.xyz);
 	gl.uniform1f(programs.water.u_choppiness, choppiness);
-	gl.uniform1f(programs.water.u_foaminess, foaminess);
+	gl.uniform1f(programs.water.u_rippliness, rippliness);
 	gl.uniform1f(programs.water.u_scale[0], wavesscale);
 	gl.uniform1f(programs.water.u_scale[1], wavesscale*wavesscalescale);
 

@@ -10,7 +10,7 @@ uniform sampler2D u_ripples[2];
 
 uniform vec3 u_cameraxyz;
 uniform float u_choppiness;
-uniform float u_foaminess;
+uniform float u_rippliness;
 
 uniform vec3 u_color;
 
@@ -52,7 +52,7 @@ void main() {
 	vec4 ripples0 = texture2D(u_ripples[0], 4.*v_uv[0] + 0.005*u_time*(u_wind + vec2(1, 0)));
 	vec4 ripples1 = texture2D(u_ripples[1], 4.*v_uv[1] - 0.01*u_time*(u_wind + vec2(0, 1)));
 
-	float ripplescale = smoothstep(0., 4., length(u_wind));
+	float ripplescale = max(u_rippliness*smoothstep(0., 4., length(u_wind)), 0.001);
 	vec3 ns0 = ripplescale*normalize(cross(normal, vec3(1, 0, 0)));
 	vec3 ns1 = ripplescale*normalize(cross(normal, -ns0));
 	normal = normalize(mat3(ns0, ns1, normal)*(2.*(ripples0.rgb + ripples1.rgb) - 2.));
