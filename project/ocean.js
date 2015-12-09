@@ -642,11 +642,6 @@ function render_scene(suninfo, time) {
 	gl.uniform1f(programs.water.u_cloudiness, cloudiness);
 
 	cells.forEach(function(cell) {
-		var center = vec3(cell.x + cell.w/2, 0, cell.z + cell.h/2);
-
-		if(dot(lookdir, normalize(subtract(center, camerastart))) < 0)
-			return;
-
 		gl.uniformMatrix4fv(programs.water.u_modelview, gl.FALSE, flatten(cell.mv));
 
 		var cellscale = (cell.w + cell.h)/2;
