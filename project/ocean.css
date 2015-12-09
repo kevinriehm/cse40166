@@ -33,11 +33,7 @@ body {
 	background: rgba(255, 255, 255, 0.6);
 }
 
-#controlstoggle {
-	display: none;
-}
-
-#controlstoggle:checked ~ * {
+#controlstoggle:checked ~ #fps ~ * {
 	display: none;
 }
 
