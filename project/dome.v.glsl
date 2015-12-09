@@ -11,6 +11,6 @@ varying vec3 v_xyz;
 void main() {
 	v_xyz = a_position;
 
-	gl_Position = u_camera*vec4(1.1*u_horizon*a_position, 1);
+	gl_Position = u_camera*vec4(10.*u_horizon*a_position, 1);
 }
 

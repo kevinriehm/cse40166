@@ -14,7 +14,10 @@ var fbos;
 var textures;
 
 var camera;
+var camerastart;
 var wavesffts;
+
+var velocity;
 
 // Geometry
 var dome;
@@ -54,8 +57,9 @@ var renderscale; // Fraction of actual canvas size at which to render
 var playing;
 var pausetime;
 var timeoffset;
-
 var prevtime;
+
+var prevsecond;
 var frames;
 
 window.onload = function() {
@@ -81,7 +85,11 @@ window.onload = function() {
 		rot: vec3(0, 0, 0)
 	};
 
+	camerastart = camera.xyz;
+
 	wavesffts = [];
+
+	velocity = vec4(0, 0, 0, 0);
 
 	// Hook up the controls
 	canvas = document.getElementById('canvas');
@@ -130,7 +138,6 @@ window.onload = function() {
 		rippliness = Number(this.value);
 		document.getElementById('ripplinessdisplay').textContent = this.value;
 	};
-	document.getElementById('rippliness').dispatchEvent(new Event('input'));
 
 	document.getElementById('windx').oninput = function() {
 		wind = wind || vec2(0, 0);
@@ -249,6 +256,29 @@ window.onload = function() {
 
 	document.onmouseup = function(e) {
 		delete canvas.draglast;
+	};
+
+	document.onkeydown = function(e) {
+		var speed = e.shiftKey ? 0.1 : 1;
+		switch(e.keyCode) {
+		case 65: velocity[0] = -speed; break; // a
+		case 68: velocity[0] =  speed; break; // d
+		case 81: velocity[1] =  speed; break; // q
+		case 69: velocity[1] = -speed; break; // e
+		case 87: velocity[2] = -speed; break; // w
+		case 83: velocity[2] =  speed; break; // s
+		}
+	};
+
+	document.onkeyup = function(e) {
+		switch(e.keyCode) {
+		case 65:
+		case 68: velocity[0] = 0; break;
+		case 81:
+		case 69: velocity[1] = 0; break;
+		case 87:
+		case 83: velocity[2] = 0; break;
+		}
 	};
 
 	// Set up WebGL
@@ -446,6 +476,22 @@ function calc_sun() {
 	return {dir: dir, theta: theta, phi: phi, color: color};
 }
 
+// Move the camera according to the current velocity
+function move_camera(dtime) {
+	var invrot = mat4();
+	invrot = mult(rotateX(camera.rot[0]), invrot);
+	invrot = mult(rotateY(camera.rot[1]), invrot);
+	invrot = mult(rotateZ(camera.rot[2]), invrot);
+
+	var delta = vec3(
+		dot(invrot[0], velocity),
+		dot(invrot[1], velocity),
+		dot(invrot[2], velocity)
+	);
+
+	camera.xyz = add(camera.xyz, scale(0.1*dtime, delta));
+}
+
 // Update the cloud texture
 function render_cloud_map() {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbos.cloud);
@@ -519,7 +565,7 @@ function render_scene(suninfo, time) {
 	cam = mult(rotateZ(-camera.rot[2]), cam);
 	cam = mult(rotateY(-camera.rot[1]), cam);
 	cam = mult(rotateX(-camera.rot[0]), cam);
-	cam = mult(perspective(fov, canvas.clientWidth/canvas.clientHeight, 0.1, horizon), cam);
+	cam = mult(perspective(fov, canvas.clientWidth/canvas.clientHeight, 0.1, 1e6*horizon), cam);
 
 	var invrot = mat4();
 	invrot = mult(rotateX(camera.rot[0]), invrot);
@@ -574,6 +620,7 @@ function render_scene(suninfo, time) {
 
 	gl.uniformMatrix4fv(programs.water.u_camera, gl.FALSE, flatten(cam));
 
+	gl.uniform3fv(programs.water.u_camerastart, camerastart);
 	gl.uniform3fv(programs.water.u_cameraxyz, camera.xyz);
 	gl.uniform1f(programs.water.u_choppiness, choppiness);
 	gl.uniform1f(programs.water.u_rippliness, rippliness);
@@ -597,10 +644,24 @@ function render_scene(suninfo, time) {
 	cells.forEach(function(cell) {
 		var center = vec3(cell.x + cell.w/2, 0, cell.z + cell.h/2);
 
-		if(dot(lookdir, normalize(subtract(center, camera.xyz))) < 0)
+		if(dot(lookdir, normalize(subtract(center, camerastart))) < 0)
 			return;
 
 		gl.uniformMatrix4fv(programs.water.u_modelview, gl.FALSE, flatten(cell.mv));
+
+		var cellscale = (cell.w + cell.h)/2;
+		var lod0 = Math.log2(cellscale*wavesdim/(wavesscale*waterdim));
+		var lod1 = Math.log2(cellscale*wavesdim/(wavesscale*wavesscalescale*waterdim));
+
+		gl.uniform1f(programs.water.u_lod[0], lod0);
+		gl.uniform1f(programs.water.u_lod[1], lod1);
+
+		gl.uniform1fv(programs.water.u_seams[0], [
+			cell.seams.w,
+			cell.seams.e,
+			cell.seams.s,
+			cell.seams.n
+		]);
 
 		gl.uniform1fv(programs.water.u_edgesize[0], [
 			(1 << cell.seams.w)/waterdim,
@@ -624,7 +685,7 @@ function render_scene(suninfo, time) {
 	camrot = mult(rotateZ(-camera.rot[2]), camrot);
 	camrot = mult(rotateY(-camera.rot[1]), camrot);
 	camrot = mult(rotateX(-camera.rot[0]), camrot);
-	camrot = mult(perspective(fov, canvas.clientWidth/canvas.clientHeight, 0.1, 2*horizon), camrot);
+	camrot = mult(perspective(fov, canvas.clientWidth/canvas.clientHeight, 0.1, 2e6*horizon), camrot);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, dome.points.buffer);
 	gl.enableVertexAttribArray(programs.dome.a_position);
@@ -665,15 +726,18 @@ function render(now) {
 	if(!timeoffset)
 		timeoffset = now;
 
+	if(!prevtime)
+		prevtime = now;
+
 	now -= timeoffset;
 	var nowsec = now/1000;
 
 	// FPS counter
-	if(!prevtime)
-		prevtime = now;
+	if(!prevsecond)
+		prevsecond = now;
 
-	if(now - prevtime >= 1000) {
-		prevtime += Math.floor((now - prevtime)/1000)*1000;
+	if(now - prevsecond >= 1000) {
+		prevsecond += Math.floor((now - prevsecond)/1000)*1000;
 		document.getElementById('fpsdisplay').textContent = frames;
 		frames = 0;
 	}
@@ -682,11 +746,16 @@ function render(now) {
 	// Update Sun
 	var suninfo = calc_sun();
 
+	// Update camera
+	move_camera(now - prevtime);
+
 	// Do all the rendering
 	render_spectrums(nowsec);
 	render_wave_maps();
 	render_sky_map(suninfo);
 	render_scene(suninfo, nowsec);
+
+	prevtime = now;
 
 	if(playing)
 		window.requestAnimationFrame(render);
