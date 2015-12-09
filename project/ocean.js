@@ -70,7 +70,7 @@ window.onload = function() {
 	skyres = 32;
 	watercolor = [
 		vec3(0.3, 0.7, 1.2),
-		vec3(0.5, 1.2, 1.7)
+		vec3(0.4, 0.9, 1.3)
 	];
 	waterdim = 8;
 	wavesscalescale = Math.sqrt(13);
