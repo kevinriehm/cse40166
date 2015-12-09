@@ -35,7 +35,7 @@ float sun_power(vec3 dir) {
 }
 
 float cloud_cover(vec3 r) {
-	float cloudiness = 0.;//texture2D(u_cloud, r.xz/(32.*r.y) - 0.00001*u_time*u_wind).r;
+	float cloudiness = texture2D(u_cloud, r.xz/(32.*r.y) - 0.00001*u_time*u_wind).r;
 
 	cloudiness = max(0., 1. - exp(-5.*(cloudiness + u_cloudiness - 1.)));
 	cloudiness *= 1. - smoothstep(0., 100., length(r.xz/r.y));
