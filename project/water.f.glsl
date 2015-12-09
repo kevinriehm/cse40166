@@ -12,7 +12,7 @@ uniform vec3 u_cameraxyz;
 uniform float u_choppiness;
 uniform float u_rippliness;
 
-uniform vec3 u_color;
+uniform vec3 u_color[2];
 
 uniform vec3 u_sundir;
 uniform vec3 u_sunlight;
@@ -35,7 +35,7 @@ float sun_power(vec3 dir) {
 }
 
 float cloud_cover(vec3 r) {
-	float cloudiness = texture2D(u_cloud, r.xz/(32.*r.y) - 0.00001*u_time*u_wind).r;
+	float cloudiness = 0.;//texture2D(u_cloud, r.xz/(32.*r.y) - 0.00001*u_time*u_wind).r;
 
 	cloudiness = max(0., 1. - exp(-5.*(cloudiness + u_cloudiness - 1.)));
 	cloudiness *= 1. - smoothstep(0., 100., length(r.xz/r.y));
@@ -50,7 +50,7 @@ void main() {
 
 	// Normal maps
 	vec4 ripples0 = texture2D(u_ripples[0], 4.*v_uv[0] + 0.005*u_time*(u_wind + vec2(1, 0)));
-	vec4 ripples1 = texture2D(u_ripples[1], 4.*v_uv[1] - 0.01*u_time*(u_wind + vec2(0, 1)));
+	vec4 ripples1 = texture2D(u_ripples[1], 4.*v_uv[1] - 0.005*u_time*(u_wind + vec2(0, 1)));
 
 	float ripplescale = max(u_rippliness*smoothstep(0., 4., length(u_wind)), 0.001);
 	vec3 ns0 = ripplescale*normalize(cross(normal, vec3(1, 0, 0)));
@@ -62,7 +62,9 @@ void main() {
 	r.y = abs(r.y); // Hack, since we aren't doing inter-wave reflections
 
 	// Base water color
-	vec3 sea = u_color*(1. - smoothstep(pi/2. - 0.1, pi/2. + 0.1, u_suntheta));
+	vec3 sea = mix(u_color[0], u_color[1], 0.5*max(v_xyz.y, 0.))
+		*u_sunlight/max(u_sunlight.r, max(u_sunlight.g, u_sunlight.b))
+		*(1. - smoothstep(pi/2. - 0.1, pi/2. + 0.1, u_suntheta));
 
 	// Atmosphere and Sun
 	vec3 sky = textureCube(u_sky, r).rgb;
@@ -79,6 +81,7 @@ void main() {
 
 	vec3 rgb = mix(sea, sky + sun, fresnel);
 
+	// HDR -> LDR
 	rgb *= u_hdrscale;
 	float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
 	rgb /= 1. + lum;

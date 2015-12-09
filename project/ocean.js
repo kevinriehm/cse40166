@@ -35,7 +35,7 @@ var lodbias; // Limit factor of cell division
 var rippliness; // Ripple normal map intensity
 var skyres; // Resolution of the skymap
 var turbidity; // Atomospheric haze
-var watercolor; // Base "ambient" color of water
+var watercolor; // Base "ambient" colors of water
 var waterdim; // Maximum resolution of a single water cell
 var wavesamplitude; // Height of waves
 var wavesdim; // Resolution of wave heightmap
@@ -59,12 +59,15 @@ var prevtime;
 var frames;
 
 window.onload = function() {
-	cloudres = 1024;
-	hdrscale = 0.2;
+	cloudres = 256;
+	hdrscale = 0.3;
 	horizon = 5000;
 	lodbias = 1;
 	skyres = 32;
-	watercolor = vec3(0.3, 0.7, 1.4);
+	watercolor = [
+		vec3(0.3, 0.7, 1.2),
+		vec3(0.4, 1.1, 1.4)
+	];
 	waterdim = 8;
 	wavesscalescale = Math.sqrt(13);
 
@@ -162,7 +165,6 @@ window.onload = function() {
 		});
 
 		[
-			textures.cloud,
 			textures.ripples[0],
 			textures.ripples[1]
 		].forEach(function(tex) {
@@ -497,7 +499,7 @@ function render_sky_map(suninfo) {
 		gl.drawArrays(gl.TRIANGLE_FAN, 0, quad.length);
 	}
 }
-var lookdir;
+
 // Actually output everything (atmosphere, waves, Sun, and clouds) to the canvas
 function render_scene(suninfo, time) {
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -524,7 +526,7 @@ function render_scene(suninfo, time) {
 	invrot = mult(rotateY(camera.rot[1]), invrot);
 	invrot = mult(rotateZ(camera.rot[2]), invrot);
 
-	lookdir = vec4(0, 0, -1, 0);
+	var lookdir = vec4(0, 0, -1, 0);
 	lookdir = vec3(
 		dot(invrot[0], lookdir),
 		dot(invrot[1], lookdir),
@@ -578,7 +580,8 @@ function render_scene(suninfo, time) {
 	gl.uniform1f(programs.water.u_scale[0], wavesscale);
 	gl.uniform1f(programs.water.u_scale[1], wavesscale*wavesscalescale);
 
-	gl.uniform3fv(programs.water.u_color, watercolor);
+	gl.uniform3fv(programs.water.u_color[0], watercolor[0]);
+	gl.uniform3fv(programs.water.u_color[1], watercolor[1]);
 
 	gl.uniform3fv(programs.water.u_sundir, suninfo.dir);
 	gl.uniform3fv(programs.water.u_sunlight, suninfo.color);
