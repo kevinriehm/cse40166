@@ -49,8 +49,8 @@ void main() {
 	vec3 normal = normalize(vec3(-(waves01.r + waves11.r), 1, -(waves01.g + waves11.g)));
 
 	// Normal maps
-	vec4 ripples0 = texture2D(u_ripples[0], 4.*v_uv[0] + 0.005*u_time*(u_wind + vec2(1, 0)));
-	vec4 ripples1 = texture2D(u_ripples[1], 4.*v_uv[1] - 0.005*u_time*(u_wind + vec2(0, 1)));
+	vec4 ripples0 = texture2D(u_ripples[0], 8.*v_uv[0] + 0.005*u_time*(u_wind + vec2(1, 0)));
+	vec4 ripples1 = texture2D(u_ripples[1], 8.*v_uv[1] - 0.005*u_time*(u_wind + vec2(0, 1)));
 
 	float ripplescale = max(u_rippliness*smoothstep(0., 4., length(u_wind)), 0.001);
 	vec3 ns0 = ripplescale*normalize(cross(normal, vec3(1, 0, 0)));
@@ -67,7 +67,7 @@ void main() {
 		*(1. - smoothstep(pi/2. - 0.1, pi/2. + 0.1, u_suntheta));
 
 	// Atmosphere and Sun
-	vec3 sky = textureCube(u_sky, r).rgb;
+	vec3 sky = textureCube(u_sky, r).rgb/2.;
 	vec3 sun = sun_power(r)*u_sunlight;
 
 	// Clouds
