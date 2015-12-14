@@ -64,7 +64,7 @@ function load_image(url) {
 		setTimeout(function() {
 			if(!playing)
 				window.requestAnimationFrame(render);
-		}, 100);
+		}, 300);
 	};
 	image.src = url;
 
