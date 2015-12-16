@@ -1,0 +1,266 @@
+\documentclass{article}
+
+\usepackage[xetex]{graphicx}
+\usepackage{subfig}
+
+\title{CSE40166 Final Project Report}
+\author{Kevin Riehm}
+\date{December 15, 2015}
+
+\begin{document}
+
+\maketitle
+
+\section*{Goals}
+
+For the final project, I had the following primary goals:
+
+\begin{itemize}
+	\item Develop a real-time animation of ocean waves
+	\item Extend the waves to the visible horizon
+	\item Render the waves with a realistic shader
+	\item Render a sky dome with realistic coloring
+	\item Include the sky and sun in the reflections on the waves
+\end{itemize}
+
+\section*{Usage}
+
+The project can be run by opening the 'ocean.html' file in the 'project'
+folder. There are over a dozen files (shader source files) loaded via AJAX
+requests, so if running from the local filesystem, be sure to adjust the
+browser's security settings appropriately.
+
+Rotate the view by clicking and dragging on the HTML canvas; dragging
+horizontally spins the view around its Y axis and dragging vertically changes
+the view's tilt.
+
+Move the view using the keyboard: pressing \verb!W! or \verb!S! moves the view
+forward and backward, respectively, pressing \verb!A! or \verb!D! moves the
+view left and right, and pressing \verb!Q! or \verb!E! moves the view up and
+down. These directions are always relative to the view's current orientation.
+
+The output can be tweaked in many ways using the HTML controls:
+
+\begin{itemize}
+	\item Play/Pause: Toggles the animation.
+	\item Show Controls: Toggles the visibility of the rest of the controls.
+	\item Wireframe: Toggles a wireframe display of the waves.
+	\item Time of day: Adjusts the location of the Sun, altering all of the lighting.
+	\item Wave amplitude: Adjusts the height of the waves; indirectly impacts their choppiness.
+	\item Wave scale: Adjusts the virtual area over which the generated wave pattern is stretched.
+	\item Choppiness: Adjusts the horizontal displacement factor of the waves.
+	\item Ripple strength: Adjusts the degree to which the ripple textures impact the normals of the waves.
+	\item Wind X/Y: Adjusts the direction and intensity of the wind vector used when generating the waves.
+	\item Turbidity: Adjusts the haziness of the atmosphere, impacting the color of the sun and sky.
+	\item Cloudiness: Adjusts the degree of cloud cover.
+	\item Anisotropic filtering: Adjusts the degree of anisotropy applied when sampling the wave textures.
+	\item Field of view: Adjusts the vertical field of view of the camera.
+	\item Render size: Adjusts the resolution at which the output is rendered (which is independent
+		of the physical size of the canvas).
+	\item Wave resolution: Selects the size of the FFT used when generating the waves (note that on slow
+		hardware, the highest option, 1024x1024, can cause freezes or crashes, and beyond 256x256
+		there is very little noticeable difference in quality).
+	\item Preset: Selects one of a handful of groups of settings to create particular appearances;
+		this is the best place to start before tweaking individual settings.
+\end{itemize}
+
+Although this has been tested on every combination of operating system and
+browser to which I had access, and it has been made to work on all of them
+(even my phone!), it should be noted that this does use several WebGL
+extensions, which may not be supported by some old hardware or software:
+
+\begin{itemize}
+	\item \verb!OES_texture_half_float!: Performing a FFT requires storing
+the intermediary results in textures with more range and precision than
+standard eight-bit-per-channel textures can supply; half floats are sixteen
+bits each, compromising between the benefits of floating point types and
+reasonable texture memory sizes. Support for both sampling from and rendering
+to half-float textures is required.
+
+	\item \verb!OES_texture_half_float_linear!: Once we have the wave
+textures generated, using them with any type of linear filtering requires this
+additional extension.
+
+	\item \verb!EXT_texture_filter_anisotropic! (optional): Because the
+waves extend to the ``horizon'', parts of them are viewed at very shallow
+angles, which means that anisotropic filtering can dramatically improve the
+visible appearance of the water.
+
+	\item \verb!gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS!: Not an extension, but
+this constant gives the maximum number of textures which can be accessed by a
+vertex shader. WebGL allows it to be zero (i.e., vertex shaders cannot read
+textures at all), but this project requires it to be at least two (the vertex
+shader for the waves gets their displacement vectors from textures). I have yet
+to actually find a system where this is not at least eight, but they might
+still exist, and so it is worth mentioning.
+\end{itemize}
+
+\section*{Implementation}
+
+This project combines several important components to produce the final image:
+the automatic generation of the wave displacement and normal textures, the
+automatic generation of the sun and atmosphere, the seamless and efficient
+rendering of the waves out to the horizon, and the final shading of the waves.
+
+\subsection*{Waves}
+
+The waves are generated using a technique from ``Simulating Ocean Water''
+(Tessendorf 2001). Apparently, this technique had been in use in high-end films
+for several years prior to Tessendorf's writeup, and since then it has been
+used widely in both films and video games; indeed, there are many other sources
+(e.g., blog posts) with explanations of the algorithm, which were extremely
+helpful at times when I would get stuck on one problem or another.
+
+The basic idea is to model ocean waves using a randomly-generated spectrum of
+sine waves. I used the random distribution given by Tessendorf (the ``Phillips
+spectrum''), which is based on empirical studies of ocean waves and is
+influenced by several factors like wind direction and the scaling of the waves
+we want to generate. This spectrum is regenerated each frame, taking the
+current time into account to produce an animation of waves over time.
+
+Key to this is the ability to turn a wave spectrum (a 2D array of phases and
+amplitudes for each of the waves we are modeling) into a height map, which we
+can use to modify the heights of the vertices of the wave geometry. The
+algorithm for this is the inverse discrete Fourier transform, and fortunately
+it can be implemented very efficiently on the GPU (I found a lot of helpful
+blog posts explaining this, too, although I never found anyone else who had
+attempted to do this on the GPU with WebGL).
+
+An $N$ by $N$ Fourier transform can be separated into two one-dimensional
+transforms of size $N$, each of which can be calculated in $\log_2 N$ passes
+over the data (the input for each step is the output of the previous step). The
+data is stored as the pixels of a textures. For each pass, I render two
+triangles to cover the entire viewport, such that the fragment shader
+implementing the FFT is executed exactly once for every pixel. Using two
+textures in a ping-pong arrangement (render to one using the other as input,
+then swap them and do it again), allows for any number of passes using a finite
+amount of memory.
+
+However, it is not enough to only generate the height map: we also need the
+normals of the waves, which we can calculate using two more transforms (one for
+the partial derivative in each of the horizontal directions). Tessendorf's
+paper also includes an important improvement to this basic model of a sum of
+sine waves, which makes the waves more ``choppy'' by also moving the vertices
+of the waves horizontally. Generating those displacements requires another two
+transforms (one for each of the horizontal directions). In total, then,
+generating a complete set of wave textures requires five Fourier transforms.
+
+On top of that, though, it is useful to have two independent sets of textures
+generated at different scales, which we can then mix together, because that
+makes the fact that they are both repeated infinitely slightly less obvious in
+the final image.  This means that, for every single frame of animation, the
+simulation computes ten separate Fourier transforms. Fortunately, the process
+is very efficient, and even an integrated GPU on a laptop can perform all of
+them in next to no time at a resolution of 64 by 64, which is adequate for this
+scenario.
+
+\subsection*{Sun and Atmosphere}
+
+The color of the sky is calculated from the formulas given in ``A Practical
+Analytic Model for Daylight'' (Preetham et al. 1999). This provides, based on
+the time of day, the direction of the sun in the sky, its color, and the color
+of the atmosphere (from sunlight scattered in the atmosphere). This covers all
+sorts of effects, from a normal blue sky with a realistic lightening towards
+the horizon to orange sunsets, or even more exotic cases, like the slight green
+tint that sometimes appears in very hazy weather (visible in this model when
+the turbidity parameters is very high). Preetham actually gives methods for
+other effects --- distance fog which incorporates both scattered sunlight and
+light reflected from the ground below, or sunlight across the entire visible
+spectrum, not just an RGB approximation --- but I judged these to be more than
+was needed for this project.
+
+Although I initially implemented the model as a function inside the shaders
+(i.e., the entire calculation was done in the water's fragment shader, and then
+duplicated in the shader for the sky dome), this was inefficient, and so it now
+renders the sky into a cube map texture, and shaders simply sample that
+texture. This is done at a very low resolution (32 by 32 for each face of the
+cube) because the color changes only gradually across the sky.
+
+To actually render the sky on the screen, a very simple shape (a double
+tetrahedron) is rendered at a very large size, approximating a sky dome. The
+final color of the sky --- and the sky's reflection in the water --- is the
+accumulation of the background atmosphere color (sampled from the cube
+texture), plus a specular term from the sun, minus a blockage factor read
+from a noise texture which represents the clouds overhead.
+
+\subsection*{Water Geometry}
+
+An important part of the project is the visual displacement of the water. To
+achieve this, the water has to be rendered as a grid of triangles dense enough
+not to have aliasing artifacts on sharp wave peaks, but not so dense as to put
+unnecessary work on the GPU. The correct density also changes with the distance
+from the virtual camera: there should be more, smaller triangles closer to the
+camera and fewer, larger triangles as they approach the horizon.
+
+I start from a single square covering the entire area over which I want to
+render water, and recursively divide it into four smaller squares, those into
+four smaller squares, etc. until each square covers a small enough area of the
+screen. This produces a list of squares which each covers a similar portion of
+the screen; for each of these squares an instance of an 8 by 8 grid of
+triangles is rendered. This gives an appropriate amount of geometrical density
+at all distance; this underlying geometry can be seen directly when wireframe
+mode is enabled.
+
+\begin{figure}
+	\centering
+	\subfloat[Unadjusted edge between grids, with small gap visible on the right]{\includegraphics[width=2.2in]{gaps.png}} ~
+	\subfloat[Adjusted edge between grids, with vertices aligned]{\includegraphics[width=2.2in]{gaps_fixed.png}}
+	\caption{Comparison of grid edges before and after adjustment}
+	\label{fig:gaps}
+\end{figure}
+
+One particular challenge of this method was the fact that it produces squares
+of varying scale immediately adjacent to each other; this means that the
+vertices of grids for the two squares do not perfectly match up, and small but
+visible gaps appear between them (see figure \ref{fig:gaps}a). This is fixed by
+shifting the edge vertices of the smaller grids to match up with the edge
+vertices of neighboring larger grids (see figure \ref{fig:gaps}b).
+
+\subsection*{Water Shading}
+
+Although the motion of the water is important, the biggest factor in the
+appearance of the waves is the normal, because water is an almost-perfect
+reflector, and the viewing angle (relative to the normal) has a huge impact on
+how reflective a non-opaque perfect reflector is. This is fully described in
+the real world by the Fresnel equations, but for graphics there is a quick
+formula known as Schlick's approximation, which is far cheaper to compute.
+
+To compute the normal for these calculations, we start with the normal from the
+FFT; however, with a resolution of only 64 by 64, this is not sufficiently
+dense to look good. Increasing the transforms' resolution would help, but a far
+cheaper approach is to use a texture to modify the normal.  As long as the
+macro-scale normals from the FFT are sufficiently varied, the small-scale
+repetition of the normal map texture is hardly noticeable and the overall
+improvement in visual quality is significant.
+
+Once the normal and reflectivity are known, all that remains is to calculate
+the reflection's color --- using the same accumulation of sky color from the
+cube map, sun color from a specular-like term, and cloud cover from a cloud
+texture as used for rendering the sky itself --- and blend it with a base
+``ambient'' color representing the refracted light from below the water's
+surface.
+
+\section*{Results}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=4.5in]{result_sunrise.png}
+	\caption{Ocean at sunrise}
+	\label{fig:sunrise}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=4.5in]{result_rough.png}
+	\caption{Ocean under strong winds and high turbidity}
+	\label{fig:rough}
+\end{figure}
+
+The final result, although not perfectly realistic, at least has the most
+important visual details of the ocean: rolling waves, sun glitter, reflection
+of the sky in the water, and an underlying blue color. It covers a variety of
+conditions well (compare, for example, the calm sea early in the day in figure
+\ref{fig:sunrise} versus the rough, midday sea in figure \ref{fig:rough}).
+
+\end{document}
+
